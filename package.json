@@ -1,0 +1,61 @@
+{
+  "name": "lockdiff",
+  "version": "0.1.0",
+  "description": "Read your lockfile diff like a human. Turns a 4000-line package-lock.json diff into what actually changed — and what is worth a second look.",
+  "type": "module",
+  "bin": {
+    "lockdiff": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/cli.js",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "lockfile",
+    "package-lock",
+    "pnpm-lock",
+    "yarn-lock",
+    "diff",
+    "dependencies",
+    "dependency-review",
+    "code-review",
+    "pull-request",
+    "supply-chain",
+    "audit",
+    "npm",
+    "pnpm",
+    "yarn",
+    "ci",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vineetdev02/lockdiff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vineetdev02/lockdiff/issues"
+  },
+  "homepage": "https://github.com/vineetdev02/lockdiff#readme",
+  "dependencies": {
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.11",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
