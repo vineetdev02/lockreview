@@ -79,7 +79,7 @@ describe("install scripts", () => {
 
     const signal = summary.signals.find((entry) => entry.rule === "install-script");
     expect(signal?.level).toBe("warn");
-    expect(signal?.title).toContain("preinstall + postinstall");
+    expect(signal?.title).toContain("preinstall, postinstall");
   });
 });
 

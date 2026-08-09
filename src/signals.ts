@@ -207,7 +207,10 @@ function collectAddedPackageSignals(
       level: "warn",
       rule: "install-script",
       package: `${change.name}@${change.to ?? ""}`,
-      title: `new dependency runs ${scripts} on install`,
+      title:
+        scripts.length > 0
+          ? `new dependency runs install scripts: ${scripts.join(", ")}`
+          : "new dependency runs an install script",
       detail: "Code from this package executes on every `npm install`, including in CI.",
     });
   }
@@ -278,7 +281,10 @@ function collectChangedPackageSignals(
       level: "high",
       rule: "install-script",
       package: label,
-      title: `now runs ${newScripts} on install (it did not before)`,
+      title:
+        newScripts.length > 0
+          ? `now runs install scripts (${newScripts.join(", ")}) — the previous version did not`
+          : "now runs an install script — the previous version did not",
       detail: "This version starts executing code during install.",
     });
   }
@@ -408,13 +414,16 @@ function maintainerChange(
   };
 }
 
-/** Prefer the registry's answer; fall back to what the lockfile recorded. */
-function installScriptsOf(info?: VersionInfo, entry?: LockPackage): string | undefined {
-  if (info?.installScripts && info.installScripts.length > 0) {
-    return info.installScripts.join(" + ");
-  }
-  if (info) return undefined; // The registry answered and said there are none.
-  return entry?.hasInstallScript ? "an install script" : undefined;
+/**
+ * Prefer the registry's answer, which names the lifecycle scripts; fall back to
+ * the lockfile, which only records that there is one. An empty array therefore
+ * means "there is a script but its name is unknown", and undefined means "no
+ * script, or no way to tell".
+ */
+function installScriptsOf(info?: VersionInfo, entry?: LockPackage): string[] | undefined {
+  if (info?.installScripts && info.installScripts.length > 0) return info.installScripts;
+  if (info) return undefined; // The registry answered, and said there are none.
+  return entry?.hasInstallScript ? [] : undefined;
 }
 
 /**

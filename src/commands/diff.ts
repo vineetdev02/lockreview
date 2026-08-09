@@ -2,8 +2,8 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 
 import { getBool, getNumber, getString, type ParsedArgs, UsageError } from "../args.js";
-import { diffLockfiles } from "../diff.js";
-import { DEFAULT_ENRICH_OPTIONS, enrichDiff, EMPTY_ENRICHMENT } from "../enrich/index.js";
+import { diffLockfiles, type LockDiff } from "../diff.js";
+import { DEFAULT_ENRICH_OPTIONS, enrichDiff, type Enrichment } from "../enrich/index.js";
 import {
   detectBaseRef,
   hasLocalChanges,
@@ -254,19 +254,17 @@ function refSide(ref: string, lockfilePath: string, cwd: string): Side {
   return { label: ref, read: () => readFileAtRef(ref, lockfilePath, cwd) };
 }
 
-function buildNotes(
-  diff: ReturnType<typeof diffLockfiles>,
-  enrichment: typeof EMPTY_ENRICHMENT,
-  offline: boolean,
-): string[] {
+function buildNotes(diff: LockDiff, enrichment: Enrichment, offline: boolean): string[] {
   const notes: string[] = [];
   const touched = diff.added.length + diff.changed.length + diff.removed.length;
 
   if (offline) {
     notes.push("Offline: install scripts, maintainers, advisories and sizes were not checked.");
   } else if (!enrichment.online && touched > 0) {
+    // Either the network failed or nothing here is on a public registry; both
+    // land in the same place, so the note does not guess which.
     notes.push(
-      "The npm registry could not be reached, so only lockfile-level checks ran. Use --offline to silence this.",
+      "No registry data came back, so only lockfile-level checks ran. Use --offline to silence this.",
     );
   }
 

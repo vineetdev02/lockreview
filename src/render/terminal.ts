@@ -102,9 +102,10 @@ function summaryBlock(report: Report): string[] {
       }`
     : "";
 
-  if (kinds.length > 0 || size) {
-    const left = kinds.length > 0 ? kinds.join("   ") : c.dim("—");
-    lines.push(`  ${left}${size ? `   ${c.dim("·")}   ${size}` : ""}`);
+  if (kinds.length > 0) {
+    lines.push(`  ${kinds.join("   ")}${size ? `   ${c.dim("·")}   ${size}` : ""}`);
+  } else if (size) {
+    lines.push(`  ${size}`);
   }
 
   return lines;
