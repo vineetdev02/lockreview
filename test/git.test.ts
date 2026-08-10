@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { platform, tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -84,6 +84,24 @@ describe("git integration", () => {
 
   it("detects the default branch as the base", () => {
     expect(detectBaseRef(repo)).toBe("main");
+  });
+
+  /**
+   * git reports the *resolved* path for a repository, so any path that reaches
+   * the same place by another spelling — a symlinked directory, a Windows 8.3
+   * short name — used to make the ref read silently return nothing.
+   */
+  it.skipIf(platform() === "win32")("reads through a symlinked path to the repository", () => {
+    const alias = join(dirname(repo), `alias-${Date.now()}`);
+    symlinkSync(repo, alias, "dir");
+
+    try {
+      const viaAlias = readFileAtRef("main", join(alias, "package-lock.json"), alias);
+      expect(viaAlias).toContain("5.0.0");
+      expect(viaAlias).toBe(readFileAtRef("main", lockfile, repo));
+    } finally {
+      rmSync(alias, { force: true });
+    }
   });
 
   it("notices uncommitted edits to the lockfile", () => {

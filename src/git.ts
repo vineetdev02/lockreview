@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { relative, resolve, sep } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 
 export class GitError extends Error {}
 
@@ -28,23 +28,25 @@ export function isGitRepository(cwd: string): boolean {
   return git(["rev-parse", "--git-dir"], { cwd, soft: true }) !== undefined;
 }
 
-export function repositoryRoot(cwd: string): string | undefined {
-  return git(["rev-parse", "--show-toplevel"], { cwd, soft: true });
-}
-
 /** True when the ref resolves to a commit in this repository. */
 export function refExists(ref: string, cwd: string): boolean {
   return git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd, soft: true }) !== undefined;
 }
 
-/** Read a file's contents at a git ref. Undefined when the path did not exist there. */
+/**
+ * Read a file's contents at a git ref. Undefined when the path did not exist
+ * there.
+ *
+ * The path is handed to git as `<ref>:./<name>` from the file's own directory,
+ * rather than being made relative to `rev-parse --show-toplevel` here. That
+ * matters because the two paths often disagree textually while pointing at the
+ * same place: git reports the resolved path, so a symlinked directory (`/tmp`
+ * on macOS is one) or a Windows 8.3 short name would otherwise produce a
+ * relative path full of `../..` and silently read nothing.
+ */
 export function readFileAtRef(ref: string, filePath: string, cwd: string): string | undefined {
-  const root = repositoryRoot(cwd);
-  if (!root) throw new GitError("Not inside a git repository.");
-
-  // git addresses paths from the repository root, always with forward slashes.
-  const relativePath = relative(root, resolve(filePath)).split(sep).join("/");
-  return git(["show", `${ref}:${relativePath}`], { cwd, soft: true });
+  const absolute = resolve(cwd, filePath);
+  return git(["show", `${ref}:./${basename(absolute)}`], { cwd: dirname(absolute), soft: true });
 }
 
 /** True when the file differs from HEAD in the working tree or the index. */
