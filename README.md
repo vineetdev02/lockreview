@@ -1,24 +1,24 @@
-# lockdiff
+# lockreview
 
-[![npm version](https://img.shields.io/npm/v/lockdiff?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/lockdiff)
-[![CI](https://github.com/vineetdev02/lockdiff/actions/workflows/ci.yml/badge.svg)](https://github.com/vineetdev02/lockdiff/actions/workflows/ci.yml)
-[![node](https://img.shields.io/node/v/lockdiff?color=5fa04e&logo=node.js&logoColor=white)](https://nodejs.org)
-[![license](https://img.shields.io/npm/l/lockdiff?color=blue)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/lockreview?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/lockreview)
+[![CI](https://github.com/vineetdev02/lockreview/actions/workflows/ci.yml/badge.svg)](https://github.com/vineetdev02/lockreview/actions/workflows/ci.yml)
+[![node](https://img.shields.io/node/v/lockreview?color=5fa04e&logo=node.js&logoColor=white)](https://nodejs.org)
+[![license](https://img.shields.io/npm/l/lockreview?color=blue)](./LICENSE)
 
 **Read your lockfile diff like a human.** A 4000-line `package-lock.json` diff, turned into what actually changed — and the handful of lines worth a second look.
 
 Nobody reviews a lockfile. GitHub shows four thousand lines of JSON, the reviewer types LGTM, and a dependency you have never heard of arrives with a `postinstall` script. That is not carelessness — the diff is genuinely unreadable, so the only rational move is to skip it.
 
-`lockdiff` reads it for you. It works on npm, pnpm and yarn, needs no signup and no server, and never installs anything.
+`lockreview` reads it for you. It works on npm, pnpm and yarn, needs no signup and no server, and never installs anything.
 
 ```
-npx lockdiff
+npx lockreview
 ```
 
 ## What you get
 
 ```
-lockdiff package-lock.json  bdba132~1 → bdba132  · npm v3
+lockreview package-lock.json  bdba132~1 → bdba132  · npm v3
 
   +3 added   -4 removed   ~107 changed   715 → 707 installed packages
   7 major   61 minor   36 patch   ·   install size -22.3 MB (113/114 known)
@@ -72,7 +72,7 @@ Everything below is derived from the lockfile itself plus two public, unauthenti
 | ⚪ | Advisories the branch *fixes* | The good news, which no other tool tells you |
 | ⚪ | Packages that gained duplicate copies | Where install size quietly goes |
 
-**What it deliberately does not do.** It is a report, not a firewall. It cannot see what a package does at runtime, it will not catch a malicious version that nobody has reported yet, and passing `lockdiff` is not a security guarantee. It reads public metadata and tells you what changed. When a check has no data — an offline run, a registry timeout, a lockfile format that does not record install scripts — it says nothing rather than reporting "clean".
+**What it deliberately does not do.** It is a report, not a firewall. It cannot see what a package does at runtime, it will not catch a malicious version that nobody has reported yet, and passing `lockreview` is not a security guarantee. It reads public metadata and tells you what changed. When a check has no data — an offline run, a registry timeout, a lockfile format that does not record install scripts — it says nothing rather than reporting "clean".
 
 Two more things it refuses to do, because a noisy tool gets muted: a private registry is not treated as suspicious, and npm Trusted Publishing (`GitHub Actions` as the publisher) is treated as the hardening measure it is, not as an ownership change. When one event touches many packages, it is reported once with a count.
 
@@ -81,13 +81,13 @@ Two more things it refuses to do, because a noisy tool gets muted: a private reg
 The zero-configuration version. No permissions, no token, no comment — the report lands on the workflow summary page:
 
 ```yaml
-- run: npx lockdiff --markdown >> "$GITHUB_STEP_SUMMARY"
+- run: npx lockreview --markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
 The full version, which posts the report on the pull request and keeps a single comment up to date:
 
 ```yaml
-name: lockdiff
+name: lockreview
 
 on:
   pull_request:
@@ -101,17 +101,17 @@ permissions:
   pull-requests: write
 
 jobs:
-  lockdiff:
+  lockreview:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # lockdiff needs the base branch to compare against
+          fetch-depth: 0 # lockreview needs the base branch to compare against
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx lockdiff --markdown > lockdiff.md
-      - run: gh pr comment "$PR" --body-file lockdiff.md --edit-last --create-if-none
+      - run: npx lockreview --markdown > lockreview.md
+      - run: gh pr comment "$PR" --body-file lockreview.md --edit-last --create-if-none
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.number }}
@@ -120,25 +120,25 @@ jobs:
 To fail the check instead of only reporting:
 
 ```yaml
-      - run: npx lockdiff --check --fail-on warn
+      - run: npx lockreview --check --fail-on warn
 ```
 
-On GitHub Actions `lockdiff` picks up `GITHUB_BASE_REF` on its own, so no `--base` is needed.
+On GitHub Actions `lockreview` picks up `GITHUB_BASE_REF` on its own, so no `--base` is needed.
 
 ## Usage
 
 ```
-lockdiff [base] [head] [options]
+lockreview [base] [head] [options]
 ```
 
 With no arguments it answers "what did this branch do to the lockfile?" — comparing against the branch you forked from, or against `HEAD` when the lockfile has uncommitted changes.
 
 ```bash
-lockdiff                              # this branch versus its base
-lockdiff main                         # against a branch, like `git diff main`
-lockdiff v1.2.0 v1.3.0                # between two tags
-lockdiff before.json after.json       # two files, no git required
-lockdiff --json | jq '.signals'       # for scripts
+lockreview                              # this branch versus its base
+lockreview main                         # against a branch, like `git diff main`
+lockreview v1.2.0 v1.3.0                # between two tags
+lockreview before.json after.json       # two files, no git required
+lockreview --json | jq '.signals'       # for scripts
 ```
 
 | Option | |
@@ -171,7 +171,7 @@ Bun and Deno lockfiles are not supported yet.
 
 ## What leaves your machine
 
-With network lookups enabled, `lockdiff` requests:
+With network lookups enabled, `lockreview` requests:
 
 - one small manifest per changed package version from the npm registry — the same public documents `npm install` reads, about 2–8 KB each;
 - one batched query to `api.osv.dev` listing the package names and versions the diff touches.

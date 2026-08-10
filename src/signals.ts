@@ -1,4 +1,4 @@
-import type { LockDiff, PackageChange } from "./diff.js";
+import type { LockfileDiff, PackageChange } from "./diff.js";
 import {
   infoFor,
   previousInfoFor,
@@ -59,7 +59,7 @@ const LEVEL_ORDER: Record<SignalLevel, number> = { high: 0, warn: 1, info: 2 };
 const RESTRICTIVE_LICENSE = /^(AGPL|SSPL|BUSL|BSL|CC-BY-NC|Commons-Clause|Elastic|RSAL|Parity)/i;
 
 /** Summarise a diff and run every risk rule that has the data it needs. */
-export function summarize(diff: LockDiff, enrichment: Enrichment): DiffSummary {
+export function summarize(diff: LockfileDiff, enrichment: Enrichment): DiffSummary {
   const signals: Signal[] = [];
 
   for (const change of diff.added) {
@@ -435,7 +435,7 @@ function installScriptsOf(info?: VersionInfo, entry?: LockPackage): string[] | u
  */
 const MIN_SIZE_COVERAGE = 0.5;
 
-function computeSizeDelta(diff: LockDiff, enrichment: Enrichment): SizeDelta | undefined {
+function computeSizeDelta(diff: LockfileDiff, enrichment: Enrichment): SizeDelta | undefined {
   if (!enrichment.online || enrichment.truncated) return undefined;
 
   let bytes = 0;

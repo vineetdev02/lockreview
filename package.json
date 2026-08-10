@@ -1,10 +1,10 @@
 {
-  "name": "lockdiff",
+  "name": "lockreview",
   "version": "0.1.0",
   "description": "Read your lockfile diff like a human. Turns a 4000-line package-lock.json diff into what actually changed — and what is worth a second look.",
   "type": "module",
   "bin": {
-    "lockdiff": "dist/cli.js"
+    "lockreview": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -43,12 +43,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vineetdev02/lockdiff.git"
+    "url": "git+https://github.com/vineetdev02/lockreview.git"
   },
   "bugs": {
-    "url": "https://github.com/vineetdev02/lockdiff/issues"
+    "url": "https://github.com/vineetdev02/lockreview/issues"
   },
-  "homepage": "https://github.com/vineetdev02/lockdiff#readme",
+  "homepage": "https://github.com/vineetdev02/lockreview#readme",
   "dependencies": {
     "yaml": "^2.9.0"
   },

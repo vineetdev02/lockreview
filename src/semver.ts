@@ -1,6 +1,6 @@
 /**
  * Just enough semver for a diff: compare two versions and say what kind of
- * jump happened. Deliberately dependency-free — lockdiff never needs range
+ * jump happened. Deliberately dependency-free — lockreview never needs range
  * matching, only ordering and classification.
  */
 

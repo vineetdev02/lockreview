@@ -5,7 +5,7 @@ export type LockKind = "npm" | "pnpm" | "yarn" | "yarn-berry";
  * One resolved package in a lockfile, normalised across package managers.
  *
  * Fields beyond `name`/`version` are optional on purpose: every manager records
- * a different subset, and lockdiff would rather say nothing than guess. A rule
+ * a different subset, and lockreview would rather say nothing than guess. A rule
  * that depends on a field it cannot see is skipped, not faked.
  */
 export interface LockPackage {

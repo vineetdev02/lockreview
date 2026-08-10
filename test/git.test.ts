@@ -31,12 +31,12 @@ describe("git integration", () => {
   };
 
   beforeAll(() => {
-    repo = mkdtempSync(join(tmpdir(), "lockdiff-test-"));
+    repo = mkdtempSync(join(tmpdir(), "lockreview-test-"));
     lockfile = join(repo, "package-lock.json");
 
     run("init", "--initial-branch=main");
     run("config", "user.email", "test@example.com");
-    run("config", "user.name", "lockdiff test");
+    run("config", "user.name", "lockreview test");
     run("config", "commit.gpgsign", "false");
 
     writeLock({ "node_modules/chalk": { version: "5.0.0" } });

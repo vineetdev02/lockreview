@@ -1,4 +1,4 @@
-import type { LockDiff, PackageChange } from "../diff.js";
+import type { LockfileDiff, PackageChange } from "../diff.js";
 import type { HttpOptions } from "./http.js";
 import { fetchVulnerabilities, type VulnInfo } from "./osv.js";
 import { fetchVersionInfo, specKey, type VersionInfo, type VersionSpec } from "./registry.js";
@@ -45,7 +45,7 @@ export const DEFAULT_ENRICH_OPTIONS: Omit<EnrichOptions, "offline" | "userAgent"
  * fails or runs past the deadline simply leaves that fact unknown. Signals
  * that depend on missing data are dropped rather than reported as clean.
  */
-export async function enrichDiff(diff: LockDiff, options: EnrichOptions): Promise<Enrichment> {
+export async function enrichDiff(diff: LockfileDiff, options: EnrichOptions): Promise<Enrichment> {
   if (options.offline) return EMPTY_ENRICHMENT;
 
   const http: HttpOptions = {
@@ -85,7 +85,7 @@ interface CollectedSpecs {
  * Removed packages are fetched last and only for their size, which is what
  * makes the install-size total add up instead of counting one direction.
  */
-function collectSpecs(diff: LockDiff, maxLookups: number): CollectedSpecs {
+function collectSpecs(diff: LockfileDiff, maxLookups: number): CollectedSpecs {
   const ranked = [
     ...diff.added,
     ...diff.changed.filter((change) => change.breaking),

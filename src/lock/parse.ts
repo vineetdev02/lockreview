@@ -6,7 +6,7 @@ import { parsePnpmLock } from "./pnpm.js";
 import { LockParseError, type Lockfile } from "./types.js";
 import { parseYarnLock } from "./yarn.js";
 
-/** Lockfile names lockdiff understands, in the order it looks for them. */
+/** Lockfile names lockreview understands, in the order it looks for them. */
 export const SUPPORTED_LOCKFILES = [
   "package-lock.json",
   "npm-shrinkwrap.json",
@@ -26,7 +26,7 @@ export function parseLockfile(path: string, text: string): Lockfile {
 
   if ((UNSUPPORTED_LOCKFILES as readonly string[]).includes(name)) {
     throw new LockParseError(
-      `${name} is not supported yet. lockdiff reads ${SUPPORTED_LOCKFILES.join(", ")}.`,
+      `${name} is not supported yet. lockreview reads ${SUPPORTED_LOCKFILES.join(", ")}.`,
     );
   }
 

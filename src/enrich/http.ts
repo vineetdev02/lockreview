@@ -20,7 +20,7 @@ const DEFAULT_TIMEOUT = 10_000;
 /**
  * GET JSON, or undefined when the resource does not exist.
  *
- * Enrichment is best-effort by design: a registry hiccup should cost lockdiff
+ * Enrichment is best-effort by design: a registry hiccup should cost lockreview
  * one signal, never the whole report. Callers treat undefined as "unknown".
  */
 export async function getJson<T>(url: string, options: HttpOptions): Promise<T | undefined> {

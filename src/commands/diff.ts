@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 
 import { getBool, getNumber, getString, type ParsedArgs, UsageError } from "../args.js";
-import { diffLockfiles, type LockDiff } from "../diff.js";
+import { diffLockfiles, type LockfileDiff } from "../diff.js";
 import { DEFAULT_ENRICH_OPTIONS, enrichDiff, type Enrichment } from "../enrich/index.js";
 import {
   detectBaseRef,
@@ -35,7 +35,7 @@ export const DIFF_FLAGS = {
   color: "boolean",
 } as const;
 
-export class LockdiffError extends Error {}
+export class LockreviewError extends Error {}
 
 /** Exit codes, documented in the README so CI can branch on them. */
 export const EXIT = { ok: 0, findings: 1, usage: 2, failed: 3 } as const;
@@ -56,7 +56,7 @@ export async function diffCommand(args: ParsedArgs, version: string): Promise<nu
   const afterText = afterSide.read();
 
   if (afterText === undefined) {
-    throw new LockdiffError(`Could not read ${lockfileName} at ${afterSide.label}.`);
+    throw new LockreviewError(`Could not read ${lockfileName} at ${afterSide.label}.`);
   }
 
   const after = parseLockfile(lockfileName, afterText);
@@ -67,13 +67,13 @@ export async function diffCommand(args: ParsedArgs, version: string): Promise<nu
 
   const diff = diffLockfiles(before, after);
 
-  const offline = getBool(args, "offline") || process.env.LOCKDIFF_OFFLINE === "1";
+  const offline = getBool(args, "offline") || process.env.LOCKREVIEW_OFFLINE === "1";
   const enrichment = await enrichDiff(diff, {
     ...DEFAULT_ENRICH_OPTIONS,
     offline,
     registry: getString(args, "registry") ?? process.env.npm_config_registry ?? DEFAULT_ENRICH_OPTIONS.registry,
     timeoutMs: timeoutMs(args),
-    userAgent: `lockdiff/${version} (+https://github.com/vineetdev02/lockdiff)`,
+    userAgent: `lockreview/${version} (+https://github.com/vineetdev02/lockreview)`,
   });
 
   const summary = summarize(diff, enrichment);
@@ -128,11 +128,11 @@ function timeoutMs(args: ParsedArgs): number {
 function resolveLockfilePath(args: ParsedArgs, cwd: string): string {
   const explicit = getString(args, "lockfile");
   if (explicit) {
-    if (!existsSync(explicit)) throw new LockdiffError(`No such file: ${explicit}`);
+    if (!existsSync(explicit)) throw new LockreviewError(`No such file: ${explicit}`);
     return explicit;
   }
 
-  // `lockdiff before.json after.json` is self-contained: both sides are on
+  // `lockreview before.json after.json` is self-contained: both sides are on
   // disk, so there is no project lockfile to go looking for. The head file
   // names the format both sides are parsed as.
   const files = args.positionals.filter(isExistingFile);
@@ -143,13 +143,13 @@ function resolveLockfilePath(args: ParsedArgs, cwd: string): string {
 
   const unsupported = findUnsupportedLockfile(cwd);
   if (unsupported) {
-    throw new LockdiffError(
-      `Found ${basename(unsupported)}, which lockdiff cannot read yet. ` +
+    throw new LockreviewError(
+      `Found ${basename(unsupported)}, which lockreview cannot read yet. ` +
         `Supported: package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock.`,
     );
   }
 
-  throw new LockdiffError(
+  throw new LockreviewError(
     "No lockfile found here or in any parent directory. Pass one with --lockfile.",
   );
 }
@@ -157,10 +157,10 @@ function resolveLockfilePath(args: ParsedArgs, cwd: string): string {
 /**
  * Work out the two sides to compare, mirroring `git diff`:
  *
- *   lockdiff                 base branch → working tree
- *   lockdiff main            main        → working tree
- *   lockdiff main feature    main        → feature
- *   lockdiff old.json new.json           two files on disk
+ *   lockreview                 base branch → working tree
+ *   lockreview main            main        → working tree
+ *   lockreview main feature    main        → feature
+ *   lockreview old.json new.json           two files on disk
  */
 function resolveSides(args: ParsedArgs, lockfilePath: string, cwd: string): [Side, Side] {
   const positionals = args.positionals;
@@ -200,9 +200,9 @@ function resolveSides(args: ParsedArgs, lockfilePath: string, cwd: string): [Sid
  */
 function automaticSides(lockfilePath: string, cwd: string, workingTree: Side): [Side, Side] {
   if (!isGitRepository(cwd)) {
-    throw new LockdiffError(
+    throw new LockreviewError(
       "Not a git repository, so there is nothing to compare against. " +
-        "Pass two lockfiles: lockdiff old.json new.json",
+        "Pass two lockfiles: lockreview old.json new.json",
     );
   }
 
@@ -226,9 +226,9 @@ function automaticSides(lockfilePath: string, cwd: string, workingTree: Side): [
     return [refSide("HEAD~1", lockfilePath, cwd), refSide("HEAD", lockfilePath, cwd)];
   }
 
-  throw new LockdiffError(
+  throw new LockreviewError(
     "Nothing to compare: the lockfile is unchanged and this branch has no commits of its own. " +
-      "Pass a ref, for example `lockdiff main`.",
+      "Pass a ref, for example `lockreview main`.",
   );
 }
 
@@ -246,15 +246,15 @@ function isExistingFile(path: string): boolean {
 
 function refSide(ref: string, lockfilePath: string, cwd: string): Side {
   if (!isGitRepository(cwd)) {
-    throw new LockdiffError(`"${ref}" is not a file, and this is not a git repository.`);
+    throw new LockreviewError(`"${ref}" is not a file, and this is not a git repository.`);
   }
   if (!refExists(ref, cwd)) {
-    throw new LockdiffError(`"${ref}" is neither a file nor a git ref in this repository.`);
+    throw new LockreviewError(`"${ref}" is neither a file nor a git ref in this repository.`);
   }
   return { label: ref, read: () => readFileAtRef(ref, lockfilePath, cwd) };
 }
 
-function buildNotes(diff: LockDiff, enrichment: Enrichment, offline: boolean): string[] {
+function buildNotes(diff: LockfileDiff, enrichment: Enrichment, offline: boolean): string[] {
   const notes: string[] = [];
   const touched = diff.added.length + diff.changed.length + diff.removed.length;
 

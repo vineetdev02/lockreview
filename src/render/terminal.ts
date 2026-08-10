@@ -64,7 +64,7 @@ function header(report: Report): string {
       : `${report.kind} v${report.before.lockfileVersion} → v${report.after.lockfileVersion}`;
 
   return [
-    c.bold("lockdiff"),
+    c.bold("lockreview"),
     " ",
     c.cyan(report.lockfile),
     "  ",

@@ -20,7 +20,7 @@ export interface PackageChange {
   devOnly: boolean;
 }
 
-export interface LockDiff {
+export interface LockfileDiff {
   before: Lockfile;
   after: Lockfile;
   added: PackageChange[];
@@ -32,7 +32,7 @@ export interface LockDiff {
 }
 
 /** Compare two parsed lockfiles by package name. */
-export function diffLockfiles(before: Lockfile, after: Lockfile): LockDiff {
+export function diffLockfiles(before: Lockfile, after: Lockfile): LockfileDiff {
   const added: PackageChange[] = [];
   const removed: PackageChange[] = [];
   const changed: PackageChange[] = [];
@@ -145,6 +145,6 @@ function bySeverityThenName(a: PackageChange, b: PackageChange): number {
 }
 
 /** Every package name touched by the diff — the set worth enriching. */
-export function changedNames(diff: LockDiff): PackageChange[] {
+export function changedNames(diff: LockfileDiff): PackageChange[] {
   return [...diff.added, ...diff.changed, ...diff.removed];
 }

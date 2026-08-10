@@ -1,4 +1,4 @@
-import type { LockDiff } from "./diff.js";
+import type { LockfileDiff } from "./diff.js";
 import type { Enrichment } from "./enrich/index.js";
 import type { LockKind } from "./lock/types.js";
 import type { DiffSummary } from "./signals.js";
@@ -16,7 +16,7 @@ export interface Report {
   kind: LockKind;
   before: Side;
   after: Side;
-  diff: LockDiff;
+  diff: LockfileDiff;
   summary: DiffSummary;
   enrichment: Enrichment;
   /** Caveats worth printing: offline mode, truncated lookups, and so on. */

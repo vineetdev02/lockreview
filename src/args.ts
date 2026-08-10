@@ -32,7 +32,7 @@ export function parseArgs(argv: string[], known: Record<string, "string" | "bool
     }
 
     const kind = known[name];
-    if (!kind) throw new UsageError(`Unknown option "${token}". Run \`lockdiff --help\`.`);
+    if (!kind) throw new UsageError(`Unknown option "${token}". Run \`lockreview --help\`.`);
 
     if (kind === "boolean") {
       if (inlineValue !== undefined) throw new UsageError(`Option "--${name}" does not take a value.`);

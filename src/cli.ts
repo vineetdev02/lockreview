@@ -2,7 +2,7 @@
 import { createRequire } from "node:module";
 
 import { getBool, hasFlag, parseArgs, UsageError } from "./args.js";
-import { DIFF_FLAGS, diffCommand, EXIT, LockdiffError } from "./commands/diff.js";
+import { DIFF_FLAGS, diffCommand, EXIT, LockreviewError } from "./commands/diff.js";
 import { GitError } from "./git.js";
 import { LockParseError } from "./lock/types.js";
 import { c, setColorEnabled } from "./render/ansi.js";
@@ -12,12 +12,12 @@ const { version } = require("../package.json") as { version: string };
 
 const GLOBAL_FLAGS = { help: "boolean", version: "boolean" } as const;
 
-const HELP = `${c.bold("lockdiff")} — read your lockfile diff like a human
+const HELP = `${c.bold("lockreview")} — read your lockfile diff like a human
 
 ${c.bold("Usage")}
-  lockdiff [base] [head] [options]
+  lockreview [base] [head] [options]
 
-  With no arguments, lockdiff compares this branch against the branch it came
+  With no arguments, lockreview compares this branch against the branch it came
   from — or against HEAD when the lockfile has uncommitted changes.
 
 ${c.bold("Options")}
@@ -35,12 +35,12 @@ ${c.bold("Options")}
   --help, --version
 
 ${c.bold("Examples")}
-  lockdiff                                  ${c.dim("# what did this branch change?")}
-  lockdiff main                             ${c.dim("# against a branch")}
-  lockdiff main feature/upgrade-vite
-  lockdiff before.json after.json           ${c.dim("# two files")}
-  lockdiff --markdown >> "$GITHUB_STEP_SUMMARY"
-  lockdiff --check --fail-on warn           ${c.dim("# gate a pull request")}
+  lockreview                                  ${c.dim("# what did this branch change?")}
+  lockreview main                             ${c.dim("# against a branch")}
+  lockreview main feature/upgrade-vite
+  lockreview before.json after.json           ${c.dim("# two files")}
+  lockreview --markdown >> "$GITHUB_STEP_SUMMARY"
+  lockreview --check --fail-on warn           ${c.dim("# gate a pull request")}
 
 ${c.bold("Exit codes")}
   0 clean   1 findings (--check)   2 bad usage   3 could not run
@@ -73,8 +73,8 @@ main(process.argv.slice(2))
       process.exitCode = EXIT.usage;
       return;
     }
-    if (error instanceof LockdiffError || error instanceof LockParseError) {
-      process.stderr.write(`${c.red("lockdiff:")} ${error.message}\n`);
+    if (error instanceof LockreviewError || error instanceof LockParseError) {
+      process.stderr.write(`${c.red("lockreview:")} ${error.message}\n`);
       process.exitCode = EXIT.failed;
       return;
     }
@@ -86,7 +86,7 @@ main(process.argv.slice(2))
 
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${c.red("Error:")} ${message}\n`);
-    if (process.env.LOCKDIFF_DEBUG && error instanceof Error && error.stack) {
+    if (process.env.LOCKREVIEW_DEBUG && error instanceof Error && error.stack) {
       process.stderr.write(`${error.stack}\n`);
     }
     process.exitCode = EXIT.failed;
