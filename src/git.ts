@@ -49,9 +49,20 @@ export function readFileAtRef(ref: string, filePath: string, cwd: string): strin
   return git(["show", `${ref}:./${basename(absolute)}`], { cwd: dirname(absolute), soft: true });
 }
 
-/** True when the file differs from HEAD in the working tree or the index. */
+/**
+ * True when the file differs from HEAD in the working tree or the index.
+ *
+ * Addressed from the file's own directory for the same reason as
+ * {@link readFileAtRef}: a path spelled differently from git's resolved one
+ * lands outside the tree git thinks it is looking at, and an empty status
+ * would read as "no local changes".
+ */
 export function hasLocalChanges(filePath: string, cwd: string): boolean {
-  const status = git(["status", "--porcelain", "--", filePath], { cwd, soft: true });
+  const absolute = resolve(cwd, filePath);
+  const status = git(["status", "--porcelain", "--", `./${basename(absolute)}`], {
+    cwd: dirname(absolute),
+    soft: true,
+  });
   return status !== undefined && status.length > 0;
 }
 

@@ -99,6 +99,10 @@ describe("git integration", () => {
       const viaAlias = readFileAtRef("main", join(alias, "package-lock.json"), alias);
       expect(viaAlias).toContain("5.0.0");
       expect(viaAlias).toBe(readFileAtRef("main", lockfile, repo));
+
+      writeLock({ "node_modules/chalk": { version: "5.9.9" } });
+      expect(hasLocalChanges(join(alias, "package-lock.json"), alias)).toBe(true);
+      run("checkout", "--", "package-lock.json");
     } finally {
       rmSync(alias, { force: true });
     }
