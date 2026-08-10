@@ -2,7 +2,11 @@ name: Release
 
 # Publishes to npm when a version tag is pushed:
 #   npm version patch && git push --follow-tags
-# Requires an NPM_TOKEN secret with publish rights.
+#
+# Authentication is npm Trusted Publishing (OIDC), configured on the package's
+# npm settings page. There is no NPM_TOKEN secret on purpose: the job proves
+# its identity to npm with the id-token below, which is also what mints the
+# provenance attestation.
 
 on:
   push:
@@ -10,7 +14,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # OIDC identity for trusted publishing and provenance
 
 jobs:
   publish:
@@ -22,8 +26,8 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      # Node 22 ships npm 10, which predates trusted publishing.
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm test
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
