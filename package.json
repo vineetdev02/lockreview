@@ -1,6 +1,6 @@
 {
   "name": "lockreview",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Read your lockfile diff like a human. Turns a 4000-line package-lock.json diff into what actually changed — and what is worth a second look.",
   "type": "module",
   "bin": {
