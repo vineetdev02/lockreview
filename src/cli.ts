@@ -28,6 +28,7 @@ ${c.bold("Options")}
   --all               List every change instead of the most significant ones
   --check             Exit 1 when a finding is at or above --fail-on
   --fail-on <level>   high, warn or info                   (default: high)
+  --ignore <rules>    Rules --check should not fail on, comma-separated
   --offline           Skip registry and advisory lookups
   --registry <url>    npm registry        (default: $npm_config_registry)
   --timeout <secs>    Budget for all network lookups            (default: 20)
@@ -41,6 +42,7 @@ ${c.bold("Examples")}
   lockreview before.json after.json           ${c.dim("# two files")}
   lockreview --markdown >> "$GITHUB_STEP_SUMMARY"
   lockreview --check --fail-on warn           ${c.dim("# gate a pull request")}
+  lockreview --check --ignore install-script  ${c.dim("# gate, minus one rule")}
 
 ${c.bold("Exit codes")}
   0 clean   1 findings (--check)   2 bad usage   3 could not run

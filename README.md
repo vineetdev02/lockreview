@@ -150,12 +150,28 @@ lockreview --json | jq '.signals'       # for scripts
 | `--all` | List every change instead of the most significant ones |
 | `--check` | Exit 1 when a finding is at or above `--fail-on` |
 | `--fail-on <level>` | `high`, `warn` or `info` (default: `high`) |
+| `--ignore <rules>` | Rules `--check` should not fail on, comma-separated |
 | `--offline` | Skip registry and advisory lookups |
 | `--registry <url>` | npm registry (default: `$npm_config_registry`) |
 | `--timeout <secs>` | Budget for all network lookups (default: 20) |
 | `--no-color` | Disable colour |
 
 **Exit codes.** `0` clean · `1` findings, with `--check` · `2` bad usage · `3` could not run.
+
+### Ignoring a rule
+
+A gate you cannot argue with is a gate somebody deletes. If your team has decided install scripts are acceptable, say so once instead of dropping `--check`:
+
+```bash
+lockreview --check --ignore install-script
+lockreview --check --fail-on warn --ignore install-script,duplicates
+```
+
+Ignoring is whole-rule rather than per-package, because a team that accepts install scripts has made one decision — re-listing every package that has one is how an allowlist rots into a rubber stamp.
+
+An ignored finding is still printed. It stops failing the build, and the report gains a line saying how many were let through and under which rule, so the escape hatch stays visible to whoever reads the pull request. A rule name that does not exist is a usage error, not a silent no-op.
+
+The rule ids are `deprecated`, `downgrade`, `duplicates`, `install-script`, `integrity`, `license`, `maintainer`, `source`, `vulnerability` and `vulnerability-fixed`. They also appear as `rule` on every signal in `--json`.
 
 ## Supported lockfiles
 

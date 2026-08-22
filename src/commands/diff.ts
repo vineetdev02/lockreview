@@ -19,7 +19,7 @@ import { renderJson } from "../render/json.js";
 import { renderMarkdown } from "../render/markdown.js";
 import { renderTerminal } from "../render/terminal.js";
 import type { Report, RenderOptions } from "../report.js";
-import { summarize, type SignalLevel } from "../signals.js";
+import { gate, type GateResult, isRuleId, RULE_IDS, type RuleId, summarize, type SignalLevel } from "../signals.js";
 
 export const DIFF_FLAGS = {
   lockfile: "string",
@@ -29,6 +29,7 @@ export const DIFF_FLAGS = {
   all: "boolean",
   check: "boolean",
   "fail-on": "string",
+  ignore: "string",
   offline: "boolean",
   registry: "string",
   timeout: "string",
@@ -77,6 +78,7 @@ export async function diffCommand(args: ParsedArgs, version: string): Promise<nu
   });
 
   const summary = summarize(diff, enrichment);
+  const outcome = gate(summary.signals, failOnLevel(args), ignoredRules(args));
 
   const report: Report = {
     lockfile: lockfileName,
@@ -86,13 +88,13 @@ export async function diffCommand(args: ParsedArgs, version: string): Promise<nu
     diff,
     summary,
     enrichment,
-    notes: buildNotes(diff, enrichment, offline),
+    notes: buildNotes(diff, enrichment, offline, outcome),
   };
 
   const options: RenderOptions = { all: getBool(args, "all") };
   process.stdout.write(renderOutput(args, report, options));
 
-  return exitCodeFor(args, report);
+  return exitCodeFor(args, outcome);
 }
 
 function renderOutput(args: ParsedArgs, report: Report, options: RenderOptions): string {
@@ -101,15 +103,32 @@ function renderOutput(args: ParsedArgs, report: Report, options: RenderOptions):
   return renderTerminal(report, options);
 }
 
-function exitCodeFor(args: ParsedArgs, report: Report): number {
+function exitCodeFor(args: ParsedArgs, outcome: GateResult): number {
   if (!getBool(args, "check")) return EXIT.ok;
+  return outcome.blocking.length > 0 ? EXIT.findings : EXIT.ok;
+}
 
-  const threshold = failOnLevel(args);
-  const order: SignalLevel[] = ["high", "warn", "info"];
-  const limit = order.indexOf(threshold);
+/**
+ * Rules `--check` should not fail on. Nothing is hidden from the report — an
+ * ignored finding still prints, and a note says how many were let through, so
+ * the escape hatch stays visible to whoever reads the pull request.
+ */
+function ignoredRules(args: ParsedArgs): ReadonlySet<RuleId> {
+  const raw = getString(args, "ignore");
+  if (raw === undefined) return new Set();
 
-  const triggered = report.summary.signals.some((signal) => order.indexOf(signal.level) <= limit);
-  return triggered ? EXIT.findings : EXIT.ok;
+  const ignored = new Set<RuleId>();
+  for (const entry of raw.split(",")) {
+    const rule = entry.trim();
+    if (rule === "") continue;
+    if (!isRuleId(rule)) {
+      throw new UsageError(
+        `Option "--ignore" does not know the rule "${rule}". Valid rules: ${RULE_IDS.join(", ")}.`,
+      );
+    }
+    ignored.add(rule);
+  }
+  return ignored;
 }
 
 function failOnLevel(args: ParsedArgs): SignalLevel {
@@ -254,7 +273,12 @@ function refSide(ref: string, lockfilePath: string, cwd: string): Side {
   return { label: ref, read: () => readFileAtRef(ref, lockfilePath, cwd) };
 }
 
-function buildNotes(diff: LockfileDiff, enrichment: Enrichment, offline: boolean): string[] {
+function buildNotes(
+  diff: LockfileDiff,
+  enrichment: Enrichment,
+  offline: boolean,
+  outcome: GateResult,
+): string[] {
   const notes: string[] = [];
   const touched = diff.added.length + diff.changed.length + diff.removed.length;
 
@@ -270,6 +294,14 @@ function buildNotes(diff: LockfileDiff, enrichment: Enrichment, offline: boolean
 
   if (enrichment.truncated) {
     notes.push("This diff is large: registry checks stopped at the lookup budget.");
+  }
+
+  if (outcome.suppressed.length > 0) {
+    const rules = [...new Set(outcome.suppressed.map((signal) => signal.rule))].sort();
+    const count = outcome.suppressed.length;
+    notes.push(
+      `${count} finding${count === 1 ? "" : "s"} did not fail the check, ignored by --ignore ${rules.join(", ")}.`,
+    );
   }
 
   return notes;

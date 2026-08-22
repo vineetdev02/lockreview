@@ -4,7 +4,7 @@ import { diffLockfiles } from "../src/diff.js";
 import type { Enrichment } from "../src/enrich/index.js";
 import type { VulnInfo } from "../src/enrich/osv.js";
 import type { VersionInfo } from "../src/enrich/registry.js";
-import { summarize, worstLevel } from "../src/signals.js";
+import { gate, isRuleId, RULE_IDS, type Signal, summarize, worstLevel } from "../src/signals.js";
 import { lockfileOf } from "./fixtures.js";
 
 function enrichmentOf(
@@ -398,13 +398,54 @@ describe("summary", () => {
   });
 
   it("ranks the worst level present", () => {
-    expect(worstLevel([{ level: "info", rule: "x", package: "p", title: "t" }])).toBe("info");
+    expect(worstLevel([{ level: "info", rule: "license", package: "p", title: "t" }])).toBe("info");
     expect(
       worstLevel([
-        { level: "info", rule: "x", package: "p", title: "t" },
-        { level: "high", rule: "y", package: "p", title: "t" },
+        { level: "info", rule: "license", package: "p", title: "t" },
+        { level: "high", rule: "integrity", package: "p", title: "t" },
       ]),
     ).toBe("high");
     expect(worstLevel([])).toBeUndefined();
+  });
+});
+
+describe("the --check gate", () => {
+  const signals: Signal[] = [
+    { level: "high", rule: "vulnerability", package: "a", title: "advisory" },
+    { level: "high", rule: "install-script", package: "b", title: "install script" },
+    { level: "warn", rule: "maintainer", package: "c", title: "new maintainer" },
+    { level: "info", rule: "duplicates", package: "d", title: "duplicated" },
+  ];
+
+  it("blocks on everything at or above the threshold", () => {
+    expect(gate(signals, "high", new Set()).blocking).toHaveLength(2);
+    expect(gate(signals, "warn", new Set()).blocking).toHaveLength(3);
+    expect(gate(signals, "info", new Set()).blocking).toHaveLength(4);
+  });
+
+  it("moves an ignored rule out of the way without dropping it", () => {
+    const outcome = gate(signals, "high", new Set(["install-script"] as const));
+
+    expect(outcome.blocking.map((signal) => signal.rule)).toEqual(["vulnerability"]);
+    expect(outcome.suppressed.map((signal) => signal.package)).toEqual(["b"]);
+  });
+
+  it("ignores nothing below the threshold, so the count stays honest", () => {
+    const outcome = gate(signals, "high", new Set(["duplicates"] as const));
+
+    expect(outcome.suppressed).toHaveLength(0);
+  });
+
+  it("can empty the gate entirely", () => {
+    const outcome = gate(signals, "high", new Set(["vulnerability", "install-script"] as const));
+
+    expect(outcome.blocking).toHaveLength(0);
+    expect(outcome.suppressed).toHaveLength(2);
+  });
+
+  it("knows its own rule ids", () => {
+    expect(isRuleId("install-script")).toBe(true);
+    expect(isRuleId("instal-script")).toBe(false);
+    for (const signal of signals) expect(RULE_IDS).toContain(signal.rule);
   });
 });

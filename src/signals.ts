@@ -12,10 +12,34 @@ import type { LockPackage } from "./lock/types.js";
 
 export type SignalLevel = "high" | "warn" | "info";
 
+/**
+ * Every rule this tool can raise. `--ignore` validates against this list, so a
+ * misspelled rule fails loudly instead of silently muting nothing — and typing
+ * `rule` as a union means a new rule cannot be added without appearing here.
+ */
+export const RULE_IDS = [
+  "deprecated",
+  "downgrade",
+  "duplicates",
+  "install-script",
+  "integrity",
+  "license",
+  "maintainer",
+  "source",
+  "vulnerability",
+  "vulnerability-fixed",
+] as const;
+
+export type RuleId = (typeof RULE_IDS)[number];
+
+export function isRuleId(value: string): value is RuleId {
+  return (RULE_IDS as readonly string[]).includes(value);
+}
+
 export interface Signal {
   level: SignalLevel;
   /** Stable identifier, so `--check` and downstream tooling can filter on it. */
-  rule: string;
+  rule: RuleId;
   package: string;
   /** One line, written for someone skimming a pull request. */
   title: string;
@@ -509,6 +533,37 @@ function unusualSource(resolved?: string): string | undefined {
 }
 
 /** Highest severity present, for `--check` and for the one-line verdict. */
+export interface GateResult {
+  /** Signals at or above the threshold that `--ignore` did not exempt. */
+  blocking: Signal[];
+  /** Signals that would have blocked, held back by `--ignore`. */
+  suppressed: Signal[];
+}
+
+/**
+ * What `--check` acts on. Ignoring is deliberately whole-rule rather than
+ * per-package: a team that has decided install scripts are acceptable has made
+ * one decision, and re-listing every package that has one is how an allowlist
+ * rots into a rubber stamp.
+ */
+export function gate(
+  signals: readonly Signal[],
+  threshold: SignalLevel,
+  ignored: ReadonlySet<RuleId>,
+): GateResult {
+  const limit = LEVEL_ORDER[threshold];
+  const blocking: Signal[] = [];
+  const suppressed: Signal[] = [];
+
+  for (const signal of signals) {
+    if (LEVEL_ORDER[signal.level] > limit) continue;
+    if (ignored.has(signal.rule)) suppressed.push(signal);
+    else blocking.push(signal);
+  }
+
+  return { blocking, suppressed };
+}
+
 export function worstLevel(signals: readonly Signal[]): SignalLevel | undefined {
   if (signals.some((signal) => signal.level === "high")) return "high";
   if (signals.some((signal) => signal.level === "warn")) return "warn";
