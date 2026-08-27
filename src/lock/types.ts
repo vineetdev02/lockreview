@@ -1,5 +1,5 @@
 /** Which package manager wrote the lockfile. */
-export type LockKind = "npm" | "pnpm" | "yarn" | "yarn-berry";
+export type LockKind = "npm" | "pnpm" | "yarn" | "yarn-berry" | "bun";
 
 /**
  * One resolved package in a lockfile, normalised across package managers.

@@ -9,7 +9,7 @@
 
 Nobody reviews a lockfile. GitHub shows four thousand lines of JSON, the reviewer types LGTM, and a dependency you have never heard of arrives with a `postinstall` script. That is not carelessness — the diff is genuinely unreadable, so the only rational move is to skip it.
 
-`lockreview` reads it for you. It works on npm, pnpm and yarn, needs no signup and no server, and never installs anything.
+`lockreview` reads it for you. It works on npm, pnpm, yarn and bun, needs no signup and no server, and never installs anything.
 
 ```
 npx lockreview
@@ -95,6 +95,7 @@ on:
       - "**/package-lock.json"
       - "**/pnpm-lock.yaml"
       - "**/yarn.lock"
+      - "**/bun.lock"
 
 permissions:
   contents: read
@@ -180,10 +181,11 @@ The rule ids are `deprecated`, `downgrade`, `duplicates`, `install-script`, `int
 | npm | `package-lock.json` and `npm-shrinkwrap.json`, lockfileVersion 1, 2 and 3 |
 | pnpm | `pnpm-lock.yaml`, lockfileVersion 5, 6 and 9 |
 | yarn | `yarn.lock`, Classic (v1) and Berry (v2+) |
+| bun | `bun.lock`, the text lockfile Bun writes since 1.2 |
 
-npm lockfiles record the most: install scripts and licences come straight out of the file. For pnpm and yarn that information comes from the registry instead, so those checks need a network run.
+npm lockfiles record the most: install scripts and licences come straight out of the file. pnpm, yarn and bun do not record them, so for those the information comes from the registry instead and those checks need a network run — offline, they are reported as unknown rather than as clean.
 
-Bun and Deno lockfiles are not supported yet.
+`bun.lockb`, Bun's older binary format, cannot be read by anything but Bun itself. `bun install --save-text-lockfile` converts it to `bun.lock`. Deno lockfiles are not supported yet.
 
 ## What leaves your machine
 

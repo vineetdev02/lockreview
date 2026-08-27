@@ -183,3 +183,48 @@ __metadata:
   languageName: unknown
   linkType: soft
 `;
+
+/**
+ * A `bun.lock` in Bun's own shape: JSONC with trailing commas, a comment, and
+ * one entry of every tuple form Bun emits — registry, git, tarball, alias,
+ * nested duplicate and workspace member. Taken from real `bun install` output.
+ */
+export const BUN_V1 = `{
+  // Written by bun install.
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "demo",
+      "dependencies": {
+        "chalk": "5.3.0",
+      },
+    },
+    "packages/lib": {
+      "name": "lib",
+      "version": "2.1.0",
+    },
+  },
+  "packages": {
+    "aliased": ["is-even@1.0.0", "", { "dependencies": { "is-odd": "^0.1.2" } }, "sha512-iseven"],
+
+    "chalk": ["chalk@5.3.0", "", {}, "sha512-chalk"],
+
+    "esbuild": ["esbuild@0.21.5", "", { "bin": { "esbuild": "bin/esbuild" } }, "sha512-esbuild"],
+
+    "internal": ["internal@1.0.0", "https://npm.corp.example.com/", {}, "sha512-internal"],
+
+    "is-number": ["is-number@github:jonschlinkert/is-number#0c6b15a", {}, "jonschlinkert-is-number-0c6b15a", "sha512-isnumber"],
+
+    "lib": ["lib@workspace:packages/lib"],
+
+    "linked": ["linked@link:../elsewhere"],
+
+    "ms": ["ms@2.1.3", "", {}, "sha512-ms213"],
+
+    "tarball-dep": ["is-odd@https://registry.npmjs.org/is-odd/-/is-odd-3.0.1.tgz", { "dependencies": { "is-number": "^6.0.0" } }, "sha512-isodd3"],
+
+    "express/ms": ["ms@2.0.0", "", {}, "sha512-ms200"],
+  }
+}
+`;

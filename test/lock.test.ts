@@ -5,7 +5,8 @@ import { parseLockfile, sniffKind } from "../src/lock/parse.js";
 import { parsePnpmKey, parsePnpmLock } from "../src/lock/pnpm.js";
 import { LockParseError } from "../src/lock/types.js";
 import { nameFromDescriptor, parseYarnLock } from "../src/lock/yarn.js";
-import { NPM_V1, NPM_V3, PNPM_V5, PNPM_V6, PNPM_V9, YARN_BERRY, YARN_CLASSIC } from "./fixtures.js";
+import { parseBunLock } from "../src/lock/bun.js";
+import { BUN_V1, NPM_V1, NPM_V3, PNPM_V5, PNPM_V6, PNPM_V9, YARN_BERRY, YARN_CLASSIC } from "./fixtures.js";
 
 const versionsOf = (lock: ReturnType<typeof parseNpmLock>, name: string): string[] =>
   (lock.packages.get(name) ?? []).map((pkg) => pkg.version);
@@ -133,12 +134,97 @@ describe("yarn lockfiles", () => {
   });
 });
 
+describe("bun lockfiles", () => {
+  const lock = parseBunLock(BUN_V1);
+
+  it("reads a JSONC file with comments and trailing commas", () => {
+    expect(lock.kind).toBe("bun");
+    expect(lock.lockfileVersion).toBe("1");
+  });
+
+  it("skips workspace members and linked directories", () => {
+    expect(lock.packages.has("lib")).toBe(false);
+    expect(lock.packages.has("linked")).toBe(false);
+  });
+
+  it("names the package from the tuple, not the key", () => {
+    // The key is an install alias; the tuple carries the real package.
+    expect(lock.packages.has("aliased")).toBe(false);
+    expect(versionsOf(lock, "is-even")).toEqual(["1.0.0"]);
+  });
+
+  it("treats a nested key as a path, not part of the name", () => {
+    expect(lock.packages.has("express/ms")).toBe(false);
+    expect(versionsOf(lock, "ms")).toEqual(["2.0.0", "2.1.3"]);
+    expect(lock.packages.get("ms")?.[0]?.path).toBe("express/ms");
+  });
+
+  it("finds the integrity hash whatever the tuple arity is", () => {
+    // Registry entries carry it fourth, git entries fourth after an object,
+    // and tarball entries third.
+    expect(lock.packages.get("chalk")?.[0]?.integrity).toBe("sha512-chalk");
+    expect(lock.packages.get("is-number")?.[0]?.integrity).toBe("sha512-isnumber");
+    expect(lock.packages.get("is-odd")?.[0]?.integrity).toBe("sha512-isodd3");
+  });
+
+  it("never mistakes a folder name for the registry", () => {
+    // The git tuple's third element is a directory, not a registry URL.
+    expect(lock.packages.get("is-number")?.[0]?.resolved).not.toContain("jonschlinkert-is-number");
+  });
+
+  it("spells out the git shorthand so the source rule can read it", () => {
+    expect(lock.packages.get("is-number")?.[0]?.resolved).toBe(
+      "git+https://github.com/jonschlinkert/is-number#0c6b15a",
+    );
+  });
+
+  it("keeps a tarball and a private registry as their own URLs", () => {
+    expect(lock.packages.get("is-odd")?.[0]?.resolved).toBe(
+      "https://registry.npmjs.org/is-odd/-/is-odd-3.0.1.tgz",
+    );
+    expect(lock.packages.get("internal")?.[0]?.resolved).toBe("https://npm.corp.example.com/");
+  });
+
+  it("leaves the default registry unresolved rather than assuming npmjs.org", () => {
+    // Bun writes "" for whatever registry the install was configured with,
+    // which is not necessarily the public one.
+    expect(lock.packages.get("chalk")?.[0]?.resolved).toBeUndefined();
+  });
+
+  it("says nothing about install scripts, which bun.lock does not record", () => {
+    // esbuild really does have a postinstall; the lockfile cannot show it, so
+    // reporting `false` here would read as "checked, and it is clean".
+    expect(lock.packages.get("esbuild")?.[0]?.hasInstallScript).toBeUndefined();
+    expect(lock.packages.get("chalk")?.[0]?.dev).toBeUndefined();
+  });
+
+  it("counts every entry, duplicates included", () => {
+    expect(lock.entryCount).toBe(8);
+  });
+
+  it("rejects a file it cannot parse", () => {
+    expect(() => parseBunLock("{ not json")).toThrow(LockParseError);
+    expect(() => parseBunLock("[]")).toThrow(/did not contain an object/);
+  });
+
+  it("does not cut the file short at a // inside a base64 hash", () => {
+    const tricky = `{ "lockfileVersion": 1, "workspaces": {}, "packages": {
+      "a": ["a@1.0.0", "", {}, "sha512-ab//cd=="],
+      "b": ["b@2.0.0", "", {}, "sha512-ef"],
+    } }`;
+    const parsed = parseBunLock(tricky);
+    expect(parsed.packages.get("a")?.[0]?.integrity).toBe("sha512-ab//cd==");
+    expect(parsed.packages.has("b")).toBe(true);
+  });
+});
+
 describe("format detection", () => {
   it.each([
     [NPM_V3, "npm"],
     [PNPM_V9, "pnpm"],
     [YARN_BERRY, "yarn"],
     [YARN_CLASSIC, "yarn"],
+    [BUN_V1, "bun"],
   ])("recognises a lockfile from its contents", (text, kind) => {
     expect(sniffKind(text)).toBe(kind);
   });
@@ -149,6 +235,7 @@ describe("format detection", () => {
 
   it("names the package managers it cannot read yet", () => {
     expect(() => parseLockfile("bun.lockb", "")).toThrow(/not supported yet/);
+    expect(() => parseLockfile("deno.lock", "")).toThrow(/not supported yet/);
   });
 
   it("gives up on content it does not recognise", () => {

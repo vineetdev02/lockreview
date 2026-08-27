@@ -1,4 +1,5 @@
 import type { LockfileDiff, PackageChange } from "../diff.js";
+import { parseVersion } from "../semver.js";
 import type { HttpOptions } from "./http.js";
 import { fetchVulnerabilities, type VulnInfo } from "./osv.js";
 import { fetchVersionInfo, specKey, type VersionInfo, type VersionSpec } from "./registry.js";
@@ -117,6 +118,11 @@ function collectSpecs(diff: LockfileDiff, maxLookups: number): CollectedSpecs {
 
 function addSpec(target: VersionSpec[], seen: Set<string>, name: string, version?: string): void {
   if (version === undefined) return;
+  // A lockfile can pin a package to a git ref, a tarball URL or a local path
+  // instead of a published version. No registry or advisory database can
+  // answer for those, so spending a lookup on one only shrinks the budget
+  // available to the versions that can actually come back.
+  if (!parseVersion(version)) return;
   const spec = { name, version };
   const key = specKey(spec);
   if (seen.has(key)) return;
