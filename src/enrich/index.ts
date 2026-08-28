@@ -123,6 +123,12 @@ function addSpec(target: VersionSpec[], seen: Set<string>, name: string, version
   // answer for those, so spending a lookup on one only shrinks the budget
   // available to the versions that can actually come back.
   if (!parseVersion(version)) return;
+  // Same reasoning for a package from another registry entirely: deno.lock
+  // names its JSR packages `jsr:@std/assert`, and an npm name can never contain
+  // a colon, so this is the whole test. Neither registry.npmjs.org nor OSV's
+  // npm ecosystem knows the package, and a lookup that cannot come back is
+  // budget taken from one that can.
+  if (name.includes(":")) return;
   const spec = { name, version };
   const key = specKey(spec);
   if (seen.has(key)) return;

@@ -37,6 +37,8 @@
     "npm",
     "pnpm",
     "yarn",
+    "bun",
+    "deno",
     "ci",
     "cli"
   ],

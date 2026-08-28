@@ -13,7 +13,12 @@ import {
   refExists,
   shortSha,
 } from "../git.js";
-import { findLockfile, findUnsupportedLockfile, parseLockfile } from "../lock/parse.js";
+import {
+  findLockfile,
+  findUnsupportedLockfile,
+  parseLockfile,
+  SUPPORTED_LOCKFILES,
+} from "../lock/parse.js";
 import { emptyLockfile, type Lockfile } from "../lock/types.js";
 import { renderJson } from "../render/json.js";
 import { renderMarkdown } from "../render/markdown.js";
@@ -164,7 +169,7 @@ function resolveLockfilePath(args: ParsedArgs, cwd: string): string {
   if (unsupported) {
     throw new LockreviewError(
       `Found ${basename(unsupported)}, which lockreview cannot read yet. ` +
-        `Supported: package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock.`,
+        `Supported: ${SUPPORTED_LOCKFILES.join(", ")}.`,
     );
   }
 

@@ -6,7 +6,20 @@ import { parsePnpmKey, parsePnpmLock } from "../src/lock/pnpm.js";
 import { LockParseError } from "../src/lock/types.js";
 import { nameFromDescriptor, parseYarnLock } from "../src/lock/yarn.js";
 import { parseBunLock } from "../src/lock/bun.js";
-import { BUN_V1, NPM_V1, NPM_V3, PNPM_V5, PNPM_V6, PNPM_V9, YARN_BERRY, YARN_CLASSIC } from "./fixtures.js";
+import { parseDenoKey, parseDenoLock } from "../src/lock/deno.js";
+import {
+  BUN_V1,
+  DENO_V1,
+  DENO_V3,
+  DENO_V4,
+  NPM_V1,
+  NPM_V3,
+  PNPM_V5,
+  PNPM_V6,
+  PNPM_V9,
+  YARN_BERRY,
+  YARN_CLASSIC,
+} from "./fixtures.js";
 
 const versionsOf = (lock: ReturnType<typeof parseNpmLock>, name: string): string[] =>
   (lock.packages.get(name) ?? []).map((pkg) => pkg.version);
@@ -218,6 +231,76 @@ describe("bun lockfiles", () => {
   });
 });
 
+describe("deno lockfiles", () => {
+  const lock = parseDenoLock(DENO_V4);
+
+  it("reads lockfile version 4", () => {
+    expect(lock.kind).toBe("deno");
+    expect(lock.lockfileVersion).toBe("4");
+  });
+
+  it("reads the npm section", () => {
+    expect(versionsOf(lock, "chalk")).toEqual(["5.3.0"]);
+    expect(lock.packages.get("chalk")?.[0]?.integrity).toBe("sha512-chalk");
+  });
+
+  it("drops the resolved peer suffix from an npm key", () => {
+    // vite@5.4.0_@types+node@22.5.0 is one install of one version, not a
+    // version a reviewer would ever type.
+    expect(versionsOf(lock, "vite")).toEqual(["5.4.0"]);
+  });
+
+  it("keeps jsr packages under the prefix Deno itself uses", () => {
+    expect(versionsOf(lock, "jsr:@std/assert")).toEqual(["1.0.13"]);
+    expect(lock.packages.has("@std/assert")).toBe(false);
+  });
+
+  it("skips remote URL imports, which carry no version", () => {
+    expect([...lock.packages.keys()].some((name) => name.startsWith("https://"))).toBe(false);
+    expect(lock.entryCount).toBe(5);
+  });
+
+  it("says nothing about install scripts, licences or the dev split", () => {
+    const esbuild = lock.packages.get("esbuild")?.[0];
+    expect(esbuild?.hasInstallScript).toBeUndefined();
+    expect(esbuild?.license).toBeUndefined();
+    expect(esbuild?.dev).toBeUndefined();
+  });
+
+  it("never assumes a registry deno.lock does not record", () => {
+    expect(lock.packages.get("chalk")?.[0]?.resolved).toBeUndefined();
+  });
+
+  it("finds both sections when v3 nests them under packages", () => {
+    const v3 = parseDenoLock(DENO_V3);
+    expect(v3.lockfileVersion).toBe("3");
+    expect(versionsOf(v3, "chalk")).toEqual(["5.4.0"]);
+    expect(versionsOf(v3, "jsr:@std/assert")).toEqual(["1.0.13"]);
+  });
+
+  it("refuses a v1 file instead of reporting its hashes as no changes", () => {
+    expect(() => parseDenoLock(DENO_V1)).toThrow(/no versions to compare/);
+  });
+
+  it("rejects a file it cannot parse", () => {
+    expect(() => parseDenoLock("{ not json")).toThrow(LockParseError);
+    expect(() => parseDenoLock("[]")).toThrow(/did not contain an object/);
+  });
+
+  it.each([
+    ["chalk@5.3.0", "chalk", "5.3.0"],
+    ["@std/assert@1.0.13", "@std/assert", "1.0.13"],
+    ["vite@5.4.0_@types+node@22.5.0", "vite", "5.4.0"],
+    ["some_pkg@1.2.3", "some_pkg", "1.2.3"],
+  ])("splits the key %s", (key, name, version) => {
+    expect(parseDenoKey(key)).toEqual({ name, version });
+  });
+
+  it.each(["chalk", "", "@scope/name"])("refuses the unversioned key %s", (key) => {
+    expect(parseDenoKey(key)).toBeUndefined();
+  });
+});
+
 describe("format detection", () => {
   it.each([
     [NPM_V3, "npm"],
@@ -225,6 +308,8 @@ describe("format detection", () => {
     [YARN_BERRY, "yarn"],
     [YARN_CLASSIC, "yarn"],
     [BUN_V1, "bun"],
+    [DENO_V4, "deno"],
+    [DENO_V3, "deno"],
   ])("recognises a lockfile from its contents", (text, kind) => {
     expect(sniffKind(text)).toBe(kind);
   });
@@ -235,7 +320,6 @@ describe("format detection", () => {
 
   it("names the package managers it cannot read yet", () => {
     expect(() => parseLockfile("bun.lockb", "")).toThrow(/not supported yet/);
-    expect(() => parseLockfile("deno.lock", "")).toThrow(/not supported yet/);
   });
 
   it("gives up on content it does not recognise", () => {

@@ -228,3 +228,71 @@ export const BUN_V1 = `{
   }
 }
 `;
+
+/** deno.lock v4: npm and jsr at the top level, peer suffixes on npm keys. */
+export const DENO_V4 = `{
+  "version": "4",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.13",
+    "npm:chalk@5": "5.3.0",
+    "npm:vite@5": "5.4.0_@types+node@22.5.0"
+  },
+  "jsr": {
+    "@std/assert@1.0.13": {
+      "integrity": "abc123",
+      "dependencies": ["jsr:@std/internal"]
+    },
+    "@std/internal@1.0.5": {
+      "integrity": "def456"
+    }
+  },
+  "npm": {
+    "chalk@5.3.0": {
+      "integrity": "sha512-chalk"
+    },
+    "esbuild@0.21.5": {
+      "integrity": "sha512-esbuild"
+    },
+    "vite@5.4.0_@types+node@22.5.0": {
+      "integrity": "sha512-vite"
+    }
+  },
+  "redirects": {},
+  "remote": {
+    "https://deno.land/std@0.224.0/path/mod.ts": "9d1b0e2f"
+  },
+  "workspace": {
+    "dependencies": ["jsr:@std/assert@1", "npm:chalk@5"]
+  }
+}
+`;
+
+/** deno.lock v3: the same two sections, nested under "packages". */
+export const DENO_V3 = `{
+  "version": "3",
+  "packages": {
+    "specifiers": {
+      "npm:chalk@5": "npm:chalk@5.4.0"
+    },
+    "jsr": {
+      "@std/assert@1.0.13": {
+        "integrity": "abc123"
+      }
+    },
+    "npm": {
+      "chalk@5.4.0": {
+        "integrity": "sha512-chalk540",
+        "dependencies": {}
+      }
+    }
+  },
+  "remote": {}
+}
+`;
+
+/** deno.lock v1: remote URL hashes and nothing else — no versions to compare. */
+export const DENO_V1 = `{
+  "https://deno.land/std@0.140.0/path/mod.ts": "9d1b0e2f",
+  "https://deno.land/std@0.140.0/fmt/colors.ts": "1a2b3c4d"
+}
+`;
