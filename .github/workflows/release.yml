@@ -6,7 +6,8 @@ name: Release
 # Authentication is npm Trusted Publishing (OIDC), configured on the package's
 # npm settings page. There is no NPM_TOKEN secret on purpose: the job proves
 # its identity to npm with the id-token below, which is also what mints the
-# provenance attestation.
+# provenance attestation. NODE_AUTH_TOKEN must stay unset — npm prefers a token
+# over OIDC when it finds one, and then asks for an OTP no workflow can answer.
 
 on:
   push:
@@ -29,5 +30,9 @@ jobs:
       # Node 22 ships npm 10, which predates trusted publishing.
       - run: npm install -g npm@latest
       - run: npm ci
+      # Both gates, not just the tests: vitest does not typecheck, so without
+      # this a release can publish code tsc would have rejected.
+      - run: npm run typecheck
       - run: npm test
+      # prepublishOnly runs the build, so dist is produced here.
       - run: npm publish --provenance --access public
