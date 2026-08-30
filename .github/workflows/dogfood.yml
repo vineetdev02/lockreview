@@ -1,0 +1,76 @@
+name: Dogfood
+
+# lockreview, reading its own lockfile diff. A tool has to be useful on a real
+# dependency change before it is worth asking anyone else to run it, and a bot
+# comment on a public pull request is the only kind of demo anybody believes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: dogfood-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Nothing to review on a push that did not touch the lockfile, and a
+    # comment saying "no dependency changes" on every unrelated pull request is
+    # exactly the noise that gets a bot muted.
+    if: github.event_name == 'pull_request'
+    steps:
+      # The base commit has to be in the clone for there to be a diff at all.
+      # Actions checks out a single commit by default, and lockreview would
+      # then have nothing to compare against.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Did this pull request touch the lockfile?
+        id: changed
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --quiet "$BASE" HEAD -- package-lock.json; then
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Review the lockfile diff
+        if: steps.changed.outputs.touched == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node dist/cli.js --base "$BASE" --markdown > comment.md
+
+      - if: steps.changed.outputs.touched == 'true'
+        run: cat comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      # One comment kept up to date rather than one per push: the body carries
+      # an <!-- lockreview --> marker, which is what --edit-last matches on.
+      - name: Comment on the pull request
+        if: steps.changed.outputs.touched == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR" --body-file comment.md --edit-last --create-if-none
+
+      # Gates last, so the comment has landed before the job can go red.
+      - name: Gate
+        if: steps.changed.outputs.touched == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node dist/cli.js --base "$BASE" --check
