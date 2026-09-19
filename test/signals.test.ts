@@ -274,6 +274,19 @@ describe("lockfile-only rules", () => {
 
     expect(rules(summary)).toContain("integrity");
   });
+
+  it("lists the extra copies of a package in semver order", () => {
+    const summary = summarize(
+      diffLockfiles(lockfileOf(["chalk@9.0.0"]), lockfileOf(["chalk@2.0.0", "chalk@9.0.0", "chalk@10.0.0"])),
+      OFFLINE,
+    );
+
+    const duplicates = summary.signals.find((signal) => signal.rule === "duplicates");
+    expect(duplicates?.title).toContain("3 different versions");
+    // A string sort reads back "10.0.0, 2.0.0, 9.0.0", which is worse than
+    // useless on the one line that exists to be skimmed.
+    expect(duplicates?.detail).toBe("2.0.0, 9.0.0, 10.0.0");
+  });
 });
 
 describe("noise control", () => {

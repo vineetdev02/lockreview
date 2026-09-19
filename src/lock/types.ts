@@ -1,3 +1,5 @@
+import { compareVersions } from "../semver.js";
+
 /** Which package manager wrote the lockfile. */
 export type LockKind = "npm" | "pnpm" | "yarn" | "yarn-berry" | "bun" | "deno";
 
@@ -44,7 +46,7 @@ export function emptyLockfile(kind: LockKind): Lockfile {
   return { kind, lockfileVersion: "none", packages: new Map(), entryCount: 0 };
 }
 
-/** Index a flat package list by name, keeping versions sorted and deduplicated. */
+/** Index a flat package list by name, keeping versions in semver order and deduplicated. */
 export function indexPackages(list: LockPackage[]): Map<string, LockPackage[]> {
   const byName = new Map<string, LockPackage[]>();
 
@@ -65,8 +67,10 @@ export function indexPackages(list: LockPackage[]): Map<string, LockPackage[]> {
     existing.push(pkg);
   }
 
+  // Semver order, not lexical: a string sort puts 10.0.0 in front of 9.0.0,
+  // and this list is what the duplicates rule prints back to a reviewer.
   for (const versions of byName.values()) {
-    versions.sort((a, b) => (a.version < b.version ? -1 : a.version > b.version ? 1 : 0));
+    versions.sort((a, b) => compareVersions(a.version, b.version));
   }
 
   return byName;

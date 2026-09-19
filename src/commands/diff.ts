@@ -53,6 +53,14 @@ interface Side {
 
 export async function diffCommand(args: ParsedArgs, version: string): Promise<number> {
   const cwd = process.cwd();
+
+  // Before anything is resolved: `lockreview a b c` is a typo, and resolving
+  // the lockfile first would answer it with "no lockfile found here or in any
+  // parent directory" — exit 3 and the wrong advice, for a usage error.
+  if (args.positionals.length > 2) {
+    throw new UsageError("Expected at most two arguments: a base and a head.");
+  }
+
   const lockfilePath = resolveLockfilePath(args, cwd);
   const lockfileName = basename(lockfilePath);
 
@@ -188,10 +196,6 @@ function resolveLockfilePath(args: ParsedArgs, cwd: string): string {
  */
 function resolveSides(args: ParsedArgs, lockfilePath: string, cwd: string): [Side, Side] {
   const positionals = args.positionals;
-
-  if (positionals.length > 2) {
-    throw new UsageError("Expected at most two arguments: a base and a head.");
-  }
 
   if (positionals.length === 2) {
     return [

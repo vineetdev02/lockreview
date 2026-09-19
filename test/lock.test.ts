@@ -1,9 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { parseNpmLock } from "../src/lock/npm.js";
-import { parseLockfile, sniffKind } from "../src/lock/parse.js";
+import {
+  findLockfile,
+  findUnsupportedLockfile,
+  parseLockfile,
+  sniffKind,
+} from "../src/lock/parse.js";
 import { parsePnpmKey, parsePnpmLock } from "../src/lock/pnpm.js";
-import { LockParseError } from "../src/lock/types.js";
+import { indexPackages, LockParseError } from "../src/lock/types.js";
 import { nameFromDescriptor, parseYarnLock } from "../src/lock/yarn.js";
 import { parseBunLock } from "../src/lock/bun.js";
 import { parseDenoKey, parseDenoLock } from "../src/lock/deno.js";
@@ -324,5 +332,73 @@ describe("format detection", () => {
 
   it("gives up on content it does not recognise", () => {
     expect(() => parseLockfile("mystery.txt", "hello")).toThrow(LockParseError);
+  });
+});
+
+describe("indexing", () => {
+  it("orders the copies of one package by semver, not by string", () => {
+    const indexed = indexPackages([
+      { name: "chalk", version: "9.0.0" },
+      { name: "chalk", version: "10.0.0" },
+      { name: "chalk", version: "2.0.0" },
+    ]);
+
+    // Lexically this is 10.0.0, 2.0.0, 9.0.0 — which is what the duplicates
+    // rule used to read back to a reviewer.
+    expect(indexed.get("chalk")?.map((pkg) => pkg.version)).toEqual([
+      "2.0.0",
+      "9.0.0",
+      "10.0.0",
+    ]);
+  });
+
+  it("keeps one entry per version, merging what each copy knows", () => {
+    const indexed = indexPackages([
+      { name: "chalk", version: "5.3.0", path: "node_modules/chalk" },
+      { name: "chalk", version: "5.3.0", integrity: "sha512-x", dev: false },
+    ]);
+
+    expect(indexed.get("chalk")).toHaveLength(1);
+    expect(indexed.get("chalk")?.[0]?.integrity).toBe("sha512-x");
+  });
+});
+
+describe("locating a lockfile", () => {
+  let root: string;
+  let nested: string;
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "lockreview-find-"));
+    nested = join(root, "packages", "app");
+    mkdirSync(nested, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("finds a supported lockfile from a subdirectory", () => {
+    const lockfile = join(root, "package-lock.json");
+    writeFileSync(lockfile, "{}");
+
+    expect(findLockfile(nested)).toBe(lockfile);
+    rmSync(lockfile);
+  });
+
+  /**
+   * The precise "bun.lockb is not supported" message is worth more than the
+   * generic one, and it used to be lost the moment the tool ran anywhere but
+   * the repository root.
+   */
+  it("finds an unsupported lockfile from a subdirectory too", () => {
+    const binary = join(root, "bun.lockb");
+    writeFileSync(binary, "");
+
+    expect(findUnsupportedLockfile(nested)).toBe(binary);
+    rmSync(binary);
+  });
+
+  it("reports nothing when there is no lockfile anywhere above", () => {
+    expect(findUnsupportedLockfile(nested)).toBeUndefined();
   });
 });

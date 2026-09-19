@@ -83,10 +83,26 @@ export function sniffKind(text: string): "npm" | "pnpm" | "yarn" | "bun" | "deno
  * filesystem root so the tool still works from inside a subdirectory.
  */
 export function findLockfile(startDir: string): string | undefined {
+  return findUpwards(startDir, SUPPORTED_LOCKFILES);
+}
+
+/**
+ * Look for a lockfile this tool cannot read yet, to give a precise error.
+ *
+ * It walks up exactly as {@link findLockfile} does, because the two are read
+ * together: a bun.lockb repository would otherwise answer "no lockfile found
+ * here or in any parent directory" from a subdirectory, which is both wrong
+ * and the opposite of a useful next step.
+ */
+export function findUnsupportedLockfile(startDir: string): string | undefined {
+  return findUpwards(startDir, UNSUPPORTED_LOCKFILES);
+}
+
+function findUpwards(startDir: string, names: readonly string[]): string | undefined {
   let dir = resolve(startDir);
 
   for (;;) {
-    for (const name of SUPPORTED_LOCKFILES) {
+    for (const name of names) {
       const candidate = join(dir, name);
       if (existsSync(candidate)) return candidate;
     }
@@ -94,14 +110,4 @@ export function findLockfile(startDir: string): string | undefined {
     if (parent === dir) return undefined;
     dir = parent;
   }
-}
-
-/** Look for a lockfile this tool cannot read yet, to give a precise error. */
-export function findUnsupportedLockfile(startDir: string): string | undefined {
-  const dir = resolve(startDir);
-  for (const name of UNSUPPORTED_LOCKFILES) {
-    const candidate = join(dir, name);
-    if (existsSync(candidate)) return candidate;
-  }
-  return undefined;
 }
