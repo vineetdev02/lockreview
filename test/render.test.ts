@@ -127,9 +127,14 @@ describe("markdown report", () => {
     expect(output).toContain("`a`");
   });
 
-  it("escapes pipes so tables survive odd package names", () => {
+  it("escapes pipes inside a table, so the row survives an odd package name", () => {
+    const report = reportOf([{ name: "we|rd", version: "1.0.0" } as never], [{ name: "we|rd", version: "2.0.0" } as never]);
+    expect(renderMarkdown(report, { all: false })).toContain("`we\\|rd`");
+  });
+
+  it("and only there, where the escape would otherwise print", () => {
     const report = reportOf([], [{ name: "we|rd", version: "1.0.0" } as never]);
-    expect(renderMarkdown(report, { all: false })).toContain("we\\|rd");
+    expect(renderMarkdown(report, { all: false })).toContain("`we|rd@1.0.0`");
   });
 });
 

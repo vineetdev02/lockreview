@@ -38,6 +38,9 @@ describe("semver", () => {
 
   it("treats a 0.x minor bump as breaking", () => {
     expect(isBreaking("0.21.5", "0.23.0", "minor")).toBe(true);
+    // ^0.0.3 means exactly 0.0.3, so any move in 0.0.x leaves the range.
+    expect(isBreaking("0.0.3", "0.0.4", "patch")).toBe(true);
+    expect(isBreaking("0.1.3", "0.1.4", "patch")).toBe(false);
     expect(isBreaking("1.21.5", "1.23.0", "minor")).toBe(false);
     expect(isBreaking("1.0.0", "2.0.0", "major")).toBe(true);
   });

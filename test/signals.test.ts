@@ -20,6 +20,8 @@ function enrichmentOf(
   return {
     versions: versionMap,
     vulns: new Map(Object.entries(vulns)),
+    // Everything named here was answered by OSV, clean or not.
+    vulnsChecked: new Set([...Object.keys(versions), ...Object.keys(vulns)]),
     online: true,
     truncated: false,
   };
@@ -28,6 +30,7 @@ function enrichmentOf(
 const OFFLINE: Enrichment = {
   versions: new Map(),
   vulns: new Map(),
+  vulnsChecked: new Set(),
   online: false,
   truncated: false,
 };
@@ -192,6 +195,36 @@ describe("advisories", () => {
     expect(summary.signals).toHaveLength(0);
   });
 
+  /*
+   * OSV is asked in batches, and a batch can fail on its own. When the batch
+   * holding the new version failed and the one holding the old version came
+   * back, the new version looked advisory-free and the report announced a fix
+   * nobody had checked — a failed lookup reading as clean.
+   */
+  it("does not claim a fix when the new version was never checked", () => {
+    const enrichment = enrichmentOf(
+      { "thing@1.0.0": {}, "thing@1.1.0": {} },
+      { "thing@1.0.0": [vuln("GHSA-1", "high")] },
+    );
+    enrichment.vulnsChecked.delete("thing@1.1.0");
+
+    const summary = summarize(diffLockfiles(lockfileOf(["thing@1.0.0"]), lockfileOf(["thing@1.1.0"])), enrichment);
+
+    expect(rules(summary)).not.toContain("vulnerability-fixed");
+  });
+
+  it("still reports an advisory on the new version when the old one was never checked", () => {
+    const enrichment = enrichmentOf(
+      { "thing@1.0.0": {}, "thing@1.1.0": {} },
+      { "thing@1.1.0": [vuln("GHSA-2", "critical")] },
+    );
+    enrichment.vulnsChecked.delete("thing@1.0.0");
+
+    const summary = summarize(diffLockfiles(lockfileOf(["thing@1.0.0"]), lockfileOf(["thing@1.1.0"])), enrichment);
+
+    expect(rules(summary)).toContain("vulnerability");
+  });
+
   it("counts removing a vulnerable package as a fix", () => {
     const summary = summarize(
       diffLockfiles(lockfileOf(["thing@1.0.0"]), lockfileOf([])),
@@ -229,6 +262,45 @@ describe("lockfile-only rules", () => {
 
     const signal = summary.signals.find((entry) => entry.rule === "source");
     expect(signal?.title).toContain("codeload.github.com");
+  });
+
+  /*
+   * registry.yarnpkg.com is Yarn's name for the npm registry. A yarn.lock in
+   * which some entries say one and some the other — a contributor with a
+   * different registry setting is enough — changed nothing about where the code
+   * comes from, and a high-level finding there fails every --check.
+   */
+  it("treats yarn's registry and npm's as the same place", () => {
+    const summary = summarize(
+      diffLockfiles(
+        lockfileOf([{ name: "chalk", version: "5.3.0", resolved: "https://registry.yarnpkg.com/chalk/-/chalk-5.3.0.tgz" }]),
+        lockfileOf([{ name: "chalk", version: "5.4.0", resolved: "https://registry.npmjs.org/chalk/-/chalk-5.4.0.tgz" }]),
+      ),
+      OFFLINE,
+    );
+
+    expect(rules(summary)).not.toContain("source");
+  });
+
+  it("reads a deprecation pnpm recorded in the lockfile, offline", () => {
+    const summary = summarize(
+      diffLockfiles(lockfileOf([]), lockfileOf([{ name: "request", version: "2.88.2", deprecated: "request has been deprecated" }])),
+      OFFLINE,
+    );
+
+    expect(summary.signals.find((signal) => signal.rule === "deprecated")?.detail).toBe("request has been deprecated");
+  });
+
+  it("does not call a version newly deprecated when the old one was too", () => {
+    const summary = summarize(
+      diffLockfiles(
+        lockfileOf([{ name: "request", version: "2.88.0", deprecated: "deprecated" }]),
+        lockfileOf([{ name: "request", version: "2.88.2", deprecated: "deprecated" }]),
+      ),
+      OFFLINE,
+    );
+
+    expect(rules(summary)).not.toContain("deprecated");
   });
 
   it("does not flag a private registry as unusual", () => {

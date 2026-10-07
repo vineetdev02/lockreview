@@ -3,7 +3,8 @@ import { basename } from "node:path";
 
 import { getBool, getNumber, getString, type ParsedArgs, UsageError } from "../args.js";
 import { diffLockfiles, type LockfileDiff } from "../diff.js";
-import { DEFAULT_ENRICH_OPTIONS, enrichDiff, type Enrichment } from "../enrich/index.js";
+import { canLookUp, DEFAULT_ENRICH_OPTIONS, enrichDiff, type Enrichment } from "../enrich/index.js";
+import { specKey } from "../enrich/registry.js";
 import {
   detectBaseRef,
   hasLocalChanges,
@@ -20,6 +21,7 @@ import {
   SUPPORTED_LOCKFILES,
 } from "../lock/parse.js";
 import { emptyLockfile, type Lockfile } from "../lock/types.js";
+import { plural } from "../render/format.js";
 import { renderJson } from "../render/json.js";
 import { renderMarkdown } from "../render/markdown.js";
 import { renderTerminal } from "../render/terminal.js";
@@ -282,7 +284,7 @@ function refSide(ref: string, lockfilePath: string, cwd: string): Side {
   return { label: ref, read: () => readFileAtRef(ref, lockfilePath, cwd) };
 }
 
-function buildNotes(
+export function buildNotes(
   diff: LockfileDiff,
   enrichment: Enrichment,
   offline: boolean,
@@ -293,12 +295,28 @@ function buildNotes(
 
   if (offline) {
     notes.push("Offline: install scripts, maintainers, advisories and sizes were not checked.");
-  } else if (!enrichment.online && touched > 0) {
-    // Either the network failed or nothing here is on a public registry; both
-    // land in the same place, so the note does not guess which.
-    notes.push(
-      "No registry data came back, so only lockfile-level checks ran. Use --offline to silence this.",
-    );
+  } else if (touched > 0) {
+    // Each source is reported on its own, because a report that is silent
+    // about a check that never ran reads as that check having passed. For the
+    // registry, "nothing came back" is either the network or packages that are
+    // on no public registry; both land in the same place, so the note does not
+    // guess which.
+    const registry = enrichment.versions.size > 0;
+    const advisories = enrichment.vulnsChecked.size > 0;
+    if (!registry && !advisories) {
+      notes.push(
+        "No registry data came back, so only lockfile-level checks ran. Use --offline to silence this.",
+      );
+    } else if (!registry) {
+      notes.push("No registry data came back, so install scripts, maintainers and licences were not checked.");
+    } else if (!advisories) {
+      notes.push("OSV did not answer, so advisories were not checked.");
+    } else if (!enrichment.truncated) {
+      const unanswered = unansweredAdvisories(diff, enrichment);
+      if (unanswered > 0) {
+        notes.push(`OSV did not answer for ${plural(unanswered, "version")}, so advisories for those are unknown.`);
+      }
+    }
   }
 
   if (enrichment.truncated) {
@@ -314,4 +332,17 @@ function buildNotes(
   }
 
   return notes;
+}
+
+/**
+ * Versions this branch brings in that OSV could have answered for and did not:
+ * a batch that failed. Without a note they would read as advisory-free.
+ */
+function unansweredAdvisories(diff: LockfileDiff, enrichment: Enrichment): number {
+  let count = 0;
+  for (const change of [...diff.added, ...diff.changed]) {
+    if (!canLookUp(change.name, change.to)) continue;
+    if (!enrichment.vulnsChecked.has(specKey({ name: change.name, version: change.to }))) count += 1;
+  }
+  return count;
 }

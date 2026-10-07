@@ -2,7 +2,7 @@ import type { PackageChange } from "../diff.js";
 import { limitOf, type RenderOptions, type Report } from "../report.js";
 import type { Signal, SignalLevel } from "../signals.js";
 import { c, padEnd, terminalWidth, truncate } from "./ansi.js";
-import { formatBytesDelta, plural } from "./format.js";
+import { formatBytesDelta, plural, printable } from "./format.js";
 
 const LEVEL_MARK: Record<SignalLevel, string> = { high: "✗", warn: "!", info: "·" };
 
@@ -26,7 +26,7 @@ export function renderTerminal(report: Report, options: RenderOptions): string {
     lines.push(
       `  ${c.dim("No dependency changes.")}  ${c.dim(`${report.summary.entriesAfter} packages installed.`)}`,
     );
-    for (const note of report.notes) lines.push("", c.dim(`  ${note}`));
+    for (const note of report.notes) lines.push("", c.dim(`  ${printable(note)}`));
     lines.push("");
     return `${lines.join("\n")}\n`;
   }
@@ -50,7 +50,7 @@ export function renderTerminal(report: Report, options: RenderOptions): string {
   }
 
   for (const note of report.notes) {
-    lines.push("", c.dim(`  ${note}`));
+    lines.push("", c.dim(`  ${printable(note)}`));
   }
 
   lines.push("");
@@ -66,9 +66,9 @@ function header(report: Report): string {
   return [
     c.bold("lockreview"),
     " ",
-    c.cyan(report.lockfile),
+    c.cyan(printable(report.lockfile)),
     "  ",
-    c.dim(`${report.before.label} → ${report.after.label}`),
+    c.dim(`${printable(report.before.label)} → ${printable(report.after.label)}`),
     "  ",
     c.dim(`· ${versions}`),
   ].join("");
@@ -118,11 +118,13 @@ function signalsBlock(signals: Signal[], options: RenderOptions, width: number):
 
   for (const signal of shown) {
     const mark = colorFor(signal.level)(LEVEL_MARK[signal.level]);
-    const name = c.bold(truncate(signal.package, 44));
+    // Everything in a signal can carry text from the registry, OSV or the
+    // lockfile itself, so all of it goes through printable().
+    const name = c.bold(truncate(printable(signal.package), 44));
     lines.push(`  ${mark}  ${name}`);
-    lines.push(`     ${colorFor(signal.level)(truncate(signal.title, width - 6))}`);
+    lines.push(`     ${colorFor(signal.level)(truncate(printable(signal.title), width - 6))}`);
     if (signal.detail) {
-      for (const line of wrap(signal.detail, width - 8)) lines.push(c.dim(`     ${line}`));
+      for (const line of wrap(printable(signal.detail), width - 8)) lines.push(c.dim(`     ${line}`));
     }
   }
 
@@ -137,7 +139,7 @@ function changedBlock(changes: PackageChange[], options: RenderOptions, width: n
   const limit = limitOf(options);
   const shown = changes.slice(0, limit);
   const nameWidth = Math.min(
-    Math.max(...shown.map((change) => change.name.length), 4),
+    Math.max(...shown.map((change) => printable(change.name).length), 4),
     Math.max(20, Math.floor(width / 3)),
   );
 
@@ -146,8 +148,8 @@ function changedBlock(changes: PackageChange[], options: RenderOptions, width: n
   for (const change of shown) {
     const kind = BUMP_LABEL[change.bump ?? "other"] ?? "";
     const label = padEnd(kind ? colorForBump(change)(kind) : c.dim("—"), 6);
-    const name = padEnd(truncate(change.name, nameWidth), nameWidth);
-    const move = `${c.dim(change.from ?? "?")} → ${c.bold(change.to ?? "?")}`;
+    const name = padEnd(truncate(printable(change.name), nameWidth), nameWidth);
+    const move = `${c.dim(printable(change.from ?? "?"))} → ${c.bold(printable(change.to ?? "?"))}`;
     const dev = change.devOnly ? c.dim("  (dev)") : "";
     lines.push(`  ${label}  ${name}  ${move}${dev}`);
   }
@@ -173,7 +175,7 @@ function packageListBlock(
   const lines = [c.bold(`${title}  ${c.dim(plural(changes.length, "package"))}`)];
   const entries = shown.map((change) => {
     const version = change.kind === "removed" ? change.from : change.to;
-    return `${change.name}@${version ?? "?"}${change.devOnly ? " (dev)" : ""}`;
+    return printable(`${change.name}@${version ?? "?"}${change.devOnly ? " (dev)" : ""}`);
   });
 
   for (const line of wrap(entries.join(", "), width - 4)) {

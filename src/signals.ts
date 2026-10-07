@@ -4,6 +4,7 @@ import {
   previousInfoFor,
   previousVulnsFor,
   vulnsFor,
+  vulnsKnownFor,
   type Enrichment,
 } from "./enrich/index.js";
 import type { VersionInfo } from "./enrich/registry.js";
@@ -97,7 +98,12 @@ export function summarize(diff: LockfileDiff, enrichment: Enrichment): DiffSumma
     // Only what this change does: advisories it introduces, and ones it fixes.
     // Pre-existing advisories on both sides are not this pull request's news.
     reportVulnerabilities(change, notIn(after, before), signals);
-    reportFixedVulnerabilities(change, notIn(before, after), signals);
+    // A fix is a claim that the new version is clean of something, so it needs
+    // OSV to have answered for the new version. A batch that failed would
+    // otherwise read as "no advisories" and announce a fix nobody checked.
+    if (vulnsKnownFor(enrichment, change)) {
+      reportFixedVulnerabilities(change, notIn(before, after), signals);
+    }
     collectChangedPackageSignals(change, enrichment, signals);
   }
 
@@ -239,13 +245,16 @@ function collectAddedPackageSignals(
     });
   }
 
-  if (info?.deprecated) {
+  // pnpm writes the notice into the lockfile at install time, so an offline
+  // run still knows it — the same fallback the licence takes below.
+  const deprecated = info?.deprecated ?? entry?.deprecated;
+  if (deprecated) {
     signals.push({
       level: "warn",
       rule: "deprecated",
       package: `${change.name}@${change.to ?? ""}`,
       title: "newly added but deprecated",
-      detail: info.deprecated,
+      detail: deprecated,
     });
   }
 
@@ -327,7 +336,7 @@ function collectChangedPackageSignals(
 
   const oldHost = hostOf(oldEntry?.resolved);
   const newHost = hostOf(newEntry?.resolved);
-  if (oldHost && newHost && oldHost !== newHost) {
+  if (oldHost && newHost && sameRegistry(oldHost) !== sameRegistry(newHost)) {
     signals.push({
       level: "high",
       rule: "source",
@@ -347,13 +356,14 @@ function collectChangedPackageSignals(
     });
   }
 
-  if (info?.deprecated && !before?.deprecated) {
+  const deprecated = info?.deprecated ?? newEntry?.deprecated;
+  if (deprecated && !(before?.deprecated ?? oldEntry?.deprecated)) {
     signals.push({
       level: "warn",
       rule: "deprecated",
       package: label,
       title: "the new version is deprecated",
-      detail: info.deprecated,
+      detail: deprecated,
     });
   }
 
@@ -507,6 +517,19 @@ function hostOf(resolved?: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * One registry under two names. Yarn Classic writes registry.yarnpkg.com, which
+ * serves the npm registry, and a yarn.lock routinely holds both spellings — a
+ * contributor with a different registry setting is enough. Moving between them
+ * changes nothing about where the code comes from, and as a high-level finding
+ * it failed every --check it appeared in.
+ */
+const REGISTRY_ALIASES: Record<string, string> = { "registry.yarnpkg.com": "registry.npmjs.org" };
+
+function sameRegistry(host: string): string {
+  return REGISTRY_ALIASES[host] ?? host;
 }
 
 const CODE_HOSTS = new Set([

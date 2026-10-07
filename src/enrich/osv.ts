@@ -27,6 +27,17 @@ const BATCH_SIZE = 200;
 /** Cap the follow-up detail lookups; the batch call already gives the count. */
 const MAX_DETAIL_LOOKUPS = 25;
 
+export interface VulnLookup {
+  /** Advisories per `name@version`, only for versions that have any. */
+  vulns: Map<string, VulnInfo[]>;
+  /**
+   * Every `name@version` OSV actually answered for, advisories or not. A
+   * version missing from `vulns` is only clean if it is in here: a batch that
+   * failed leaves its versions unknown, and unknown must never read as clean.
+   */
+  checked: Set<string>;
+}
+
 /**
  * Look up known advisories for a set of package versions via OSV.dev.
  *
@@ -36,9 +47,10 @@ const MAX_DETAIL_LOOKUPS = 25;
 export async function fetchVulnerabilities(
   specs: readonly VersionSpec[],
   options: HttpOptions,
-): Promise<Map<string, VulnInfo[]>> {
+): Promise<VulnLookup> {
   const byPackage = new Map<string, VulnInfo[]>();
-  if (specs.length === 0) return byPackage;
+  const checked = new Set<string>();
+  if (specs.length === 0) return { vulns: byPackage, checked };
 
   const idsByKey = new Map<string, string[]>();
   const allIds = new Set<string>();
@@ -57,7 +69,8 @@ export async function fetchVulnerabilities(
 
     response.results.forEach((result, index) => {
       const spec = chunk[index];
-      if (!spec) return;
+      if (!spec || !result || typeof result !== "object") return;
+      checked.add(specKey(spec));
       const ids = (result?.vulns ?? [])
         .map((vuln) => vuln?.id)
         .filter((id): id is string => typeof id === "string");
@@ -78,7 +91,7 @@ export async function fetchVulnerabilities(
     byPackage.set(key, vulns);
   }
 
-  return byPackage;
+  return { vulns: byPackage, checked };
 }
 
 async function fetchDetails(ids: string[], options: HttpOptions): Promise<Map<string, VulnInfo>> {

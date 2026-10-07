@@ -1,4 +1,5 @@
 import { indexPackages, LockParseError, type Lockfile, type LockPackage } from "./types.js";
+import { nameFromDescriptor } from "./yarn.js";
 
 interface NpmV3Entry {
   version?: string;
@@ -61,12 +62,19 @@ function fromPackagesMap(packages: Record<string, NpmV3Entry>): LockPackage[] {
     if (!entry || typeof entry !== "object") continue;
     // "" is the project root and "packages/app" style keys are workspace
     // members — local code, not dependencies.
-    const name = nameFromPath(path);
-    if (name === undefined) continue;
+    const folder = nameFromPath(path);
+    if (folder === undefined) continue;
     // `link: true` entries point at a workspace directory; the real content is
     // the target entry, which appears separately.
     if (entry.link) continue;
     if (typeof entry.version !== "string") continue;
+
+    // The folder names an install, not a package. An alias —
+    // `"wrap-ansi-cjs": "npm:wrap-ansi@^7"`, which glob@10 brings into most
+    // projects — is installed under the alias and records the package it really
+    // is in `name`. Keyed by folder, every registry and advisory lookup asked
+    // about a package that is not the one installed.
+    const name = typeof entry.name === "string" && entry.name !== "" ? entry.name : folder;
 
     list.push({
       name,
@@ -96,9 +104,11 @@ function fromLegacyTree(tree: Record<string, NpmV1Entry>): LockPackage[] {
       if (!entry || typeof entry !== "object") continue;
       const path = `${prefix}node_modules/${name}`;
       if (typeof entry.version === "string") {
+        // npm 6 records an alias in the version: `npm:wrap-ansi@7.0.0`.
+        const alias = aliasOf(entry.version);
         list.push({
-          name,
-          version: entry.version,
+          name: alias?.name ?? name,
+          version: alias?.version ?? entry.version,
           resolved: entry.resolved,
           integrity: entry.integrity,
           dev: entry.dev === true,
@@ -112,6 +122,15 @@ function fromLegacyTree(tree: Record<string, NpmV1Entry>): LockPackage[] {
 
   walk(tree, "");
   return list;
+}
+
+/** `npm:wrap-ansi@7.0.0` -> wrap-ansi at 7.0.0; anything else is not an alias. */
+function aliasOf(version: string): { name: string; version: string } | undefined {
+  if (!version.startsWith("npm:")) return undefined;
+  const spec = version.slice(4);
+  const name = nameFromDescriptor(spec);
+  if (!name || spec.length <= name.length + 1) return undefined;
+  return { name, version: spec.slice(name.length + 1) };
 }
 
 /**

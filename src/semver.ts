@@ -89,12 +89,16 @@ export function classifyBump(from: string, to: string): BumpKind {
   return "prerelease";
 }
 
-/** 0.x releases break on minor bumps; treat those as breaking too. */
+/**
+ * Breaking by caret semantics: a major bump, a minor bump within 0.x, and any
+ * bump at all within 0.0.x — `^0.0.3` matches 0.0.3 and nothing else.
+ */
 export function isBreaking(from: string, to: string, bump: BumpKind): boolean {
   if (bump === "major") return true;
-  if (bump !== "minor") return false;
+  if (bump !== "minor" && bump !== "patch") return false;
 
   const before = parseVersion(from);
   const after = parseVersion(to);
-  return before?.major === 0 && after?.major === 0;
+  if (before?.major !== 0 || after?.major !== 0) return false;
+  return bump === "minor" || (before.minor === 0 && after.minor === 0);
 }

@@ -34,3 +34,30 @@ export function listSentence(items: readonly string[], limit = 4): string {
   }
   return `${items.slice(0, limit).join(", ")} and ${items.length - limit} more`;
 }
+
+/**
+ * Characters a terminal acts on rather than prints, and characters that print
+ * as nothing at all: C0 and C1 controls (ESC opens every escape sequence),
+ * DEL, soft hyphens and zero-width characters, line and paragraph separators,
+ * and the bidirectional controls that reorder what is shown around them.
+ */
+const INVISIBLE =
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g;
+
+/**
+ * Text that came from somewhere else, made safe to print.
+ *
+ * Most of a report was written by other people: the deprecation notice and the
+ * licence by the package's author, the advisory summary by OSV, every name and
+ * URL by a lockfile that is itself the change under review. Printed raw, an
+ * escape sequence in a deprecation notice can clear the screen and draw a
+ * clean report of its own, and a zero-width character can make a name read as
+ * one it is not. So nothing is dropped silently: each such character is shown
+ * as its `\uXXXX` code, where a reviewer can see it, and line breaks become
+ * spaces so a notice cannot start a line that looks like lockreview's own.
+ */
+export function printable(text: string): string {
+  return text
+    .replace(/\r\n|[\n\r\t]/g, " ")
+    .replace(INVISIBLE, (char) => `\\u${(char.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`);
+}

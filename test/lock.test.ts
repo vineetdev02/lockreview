@@ -68,6 +68,46 @@ describe("npm lockfiles", () => {
   it("rejects invalid JSON with a readable message", () => {
     expect(() => parseNpmLock("{ not json")).toThrow(LockParseError);
   });
+
+  /*
+   * An npm alias is installed under the alias — `node_modules/wrap-ansi-cjs` —
+   * but is the package named in the entry's `name`. Keyed by folder, every
+   * registry and advisory lookup asked about a package that is not the one
+   * installed: one that does not exist, or worse, an unrelated one that does.
+   * glob@10 puts two of these into most projects.
+   */
+  it("names an alias by the package it installs, not the folder", () => {
+    const aliased = parseNpmLock(
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          "": { name: "demo" },
+          "node_modules/wrap-ansi-cjs": {
+            name: "wrap-ansi",
+            version: "7.0.0",
+            resolved: "https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-7.0.0.tgz",
+          },
+          "node_modules/wrap-ansi": { version: "8.1.0" },
+        },
+      }),
+    );
+
+    expect(aliased.packages.has("wrap-ansi-cjs")).toBe(false);
+    expect(versionsOf(aliased, "wrap-ansi")).toEqual(["7.0.0", "8.1.0"]);
+  });
+
+  it("reads the same alias out of a lockfileVersion 1 tree", () => {
+    const legacy = parseNpmLock(
+      JSON.stringify({
+        lockfileVersion: 1,
+        dependencies: { "wrap-ansi-cjs": { version: "npm:wrap-ansi@7.0.0" }, "@x/y-old": { version: "npm:@x/y@2.0.0" } },
+      }),
+    );
+
+    expect(versionsOf(legacy, "wrap-ansi")).toEqual(["7.0.0"]);
+    expect(versionsOf(legacy, "@x/y")).toEqual(["2.0.0"]);
+    expect(legacy.packages.has("wrap-ansi-cjs")).toBe(false);
+  });
 });
 
 describe("pnpm lockfiles", () => {

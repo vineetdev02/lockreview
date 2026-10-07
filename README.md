@@ -72,9 +72,11 @@ Everything below is derived from the lockfile itself plus two public, unauthenti
 | ⚪ | Advisories the branch *fixes* | The good news, which no other tool tells you |
 | ⚪ | Packages that gained duplicate copies | Where install size quietly goes |
 
-**What it deliberately does not do.** It is a report, not a firewall. It cannot see what a package does at runtime, it will not catch a malicious version that nobody has reported yet, and passing `lockreview` is not a security guarantee. It reads public metadata and tells you what changed. When a check has no data — an offline run, a registry timeout, a lockfile format that does not record install scripts — it says nothing rather than reporting "clean".
+**What it deliberately does not do.** It is a report, not a firewall. It cannot see what a package does at runtime, it will not catch a malicious version that nobody has reported yet, and passing `lockreview` is not a security guarantee. It reads public metadata and tells you what changed. When a check has no data — an offline run, a registry timeout, an advisory lookup that did not come back, a lockfile format that does not record install scripts — it says so in a note under the report rather than reporting "clean", and it never claims a fix it could not check.
 
-Two more things it refuses to do, because a noisy tool gets muted: a private registry is not treated as suspicious, and npm Trusted Publishing (`GitHub Actions` as the publisher) is treated as the hardening measure it is, not as an ownership change. When one event touches many packages, it is reported once with a count.
+Two more things it refuses to do, because a noisy tool gets muted: a private registry is not treated as suspicious, and npm Trusted Publishing (`GitHub Actions` as the publisher) is treated as the hardening measure it is, not as an ownership change. `registry.yarnpkg.com` and `registry.npmjs.org` are one registry under two names, so moving between them is not a source change. When one event touches many packages, it is reported once with a count.
+
+**Text it did not write is printed as text.** A deprecation notice, a licence string or an advisory summary is someone else's words, and so is every name in a lockfile under review. In the terminal, control characters and invisible ones are shown as `\uXXXX` rather than obeyed — an escape sequence cannot clear the screen and draw a clean report of its own, and a zero-width character cannot make a name read as another. In the pull request comment, that text cannot become a link, an image, HTML, a mention or an issue reference. `--json` keeps it verbatim for tools.
 
 ## In CI
 
@@ -185,7 +187,9 @@ The rule ids are `deprecated`, `downgrade`, `duplicates`, `install-script`, `int
 | bun | `bun.lock`, the text lockfile Bun writes since 1.2 |
 | deno | `deno.lock`, version 2 through 5 — both the npm and the jsr half |
 
-npm lockfiles record the most: install scripts and licences come straight out of the file. pnpm, yarn, bun and deno do not record them, so for those the information comes from the registry instead and those checks need a network run — offline, they are reported as unknown rather than as clean.
+npm lockfiles record the most: install scripts and licences come straight out of the file. pnpm, yarn, bun and deno do not record them, so for those the information comes from the registry instead and those checks need a network run — offline, they are reported as unknown rather than as clean. pnpm does record deprecations, and those are read offline.
+
+An npm alias — `"wrap-ansi-cjs": "npm:wrap-ansi@^7"`, which `glob` brings into most projects — is reported as the package it installs, not the folder it is installed under, so its registry and advisory lookups ask about the right package.
 
 JSR packages in a `deno.lock` keep the `jsr:` prefix Deno itself uses — `jsr:@std/assert` — because they are not npm packages under a similar name. Their versions are compared like any other, and no npm registry or advisory lookup is spent on them. Bare `https://` imports, which Deno records as a URL and a hash with no version anywhere, are left out: there is nothing to compare, and a diff of them would be the hash wall this tool exists to replace.
 

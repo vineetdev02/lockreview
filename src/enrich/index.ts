@@ -16,6 +16,11 @@ export interface EnrichOptions {
 export interface Enrichment {
   versions: Map<string, VersionInfo>;
   vulns: Map<string, VulnInfo[]>;
+  /**
+   * Versions OSV answered for. Absent from `vulns` and present here is clean;
+   * absent from both is unknown.
+   */
+  vulnsChecked: Set<string>;
   /** False when running offline, or when every lookup failed. */
   online: boolean;
   /** True when the diff was larger than the lookup budget. */
@@ -25,6 +30,7 @@ export interface Enrichment {
 export const EMPTY_ENRICHMENT: Enrichment = {
   versions: new Map(),
   vulns: new Map(),
+  vulnsChecked: new Set(),
   online: false,
   truncated: false,
 };
@@ -60,15 +66,18 @@ export async function enrichDiff(diff: LockfileDiff, options: EnrichOptions): Pr
   // Advisories are queried for both sides: knowing what a bump *fixes* is as
   // useful to a reviewer as knowing what it introduces, and OSV batches 200
   // versions into a single request either way.
-  const [versions, vulns] = await Promise.all([
+  const [versions, advisories] = await Promise.all([
     fetchVersionInfo([...current, ...previous], { ...http, registry: options.registry }),
     fetchVulnerabilities([...current, ...previous], http),
   ]);
 
   return {
     versions,
-    vulns,
-    online: versions.size > 0 || vulns.size > 0,
+    vulns: advisories.vulns,
+    vulnsChecked: advisories.checked,
+    // OSV answering with "no advisories" is an answer, so it counts — even
+    // though it adds nothing to `vulns`.
+    online: versions.size > 0 || advisories.checked.size > 0,
     truncated,
   };
 }
@@ -116,19 +125,24 @@ function collectSpecs(diff: LockfileDiff, maxLookups: number): CollectedSpecs {
   return { current, previous, truncated };
 }
 
-function addSpec(target: VersionSpec[], seen: Set<string>, name: string, version?: string): void {
-  if (version === undefined) return;
+/** True when a registry or OSV could answer for this version at all. */
+export function canLookUp(name: string, version: string | undefined): version is string {
+  if (version === undefined) return false;
   // A lockfile can pin a package to a git ref, a tarball URL or a local path
   // instead of a published version. No registry or advisory database can
   // answer for those, so spending a lookup on one only shrinks the budget
   // available to the versions that can actually come back.
-  if (!parseVersion(version)) return;
+  if (!parseVersion(version)) return false;
   // Same reasoning for a package from another registry entirely: deno.lock
   // names its JSR packages `jsr:@std/assert`, and an npm name can never contain
   // a colon, so this is the whole test. Neither registry.npmjs.org nor OSV's
   // npm ecosystem knows the package, and a lookup that cannot come back is
   // budget taken from one that can.
-  if (name.includes(":")) return;
+  return !name.includes(":");
+}
+
+function addSpec(target: VersionSpec[], seen: Set<string>, name: string, version?: string): void {
+  if (!canLookUp(name, version)) return;
   const spec = { name, version };
   const key = specKey(spec);
   if (seen.has(key)) return;
@@ -151,6 +165,11 @@ export function previousInfoFor(
   return change.from === undefined
     ? undefined
     : enrichment.versions.get(specKey({ name: change.name, version: change.from }));
+}
+
+/** True when OSV answered for the version a change moves to. */
+export function vulnsKnownFor(enrichment: Enrichment, change: PackageChange): boolean {
+  return change.to !== undefined && enrichment.vulnsChecked.has(specKey({ name: change.name, version: change.to }));
 }
 
 /** Advisories affecting the version a change moves to. */
