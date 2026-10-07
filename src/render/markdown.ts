@@ -51,7 +51,13 @@ function headline(report: Report): string {
   const extras = [
     summary.major > 0 ? `${summary.major} major` : "",
     summary.downgrades > 0 ? `${summary.downgrades} downgraded` : "",
-    summary.size ? `install size ${formatBytesDelta(summary.size.bytes)}` : "",
+    summary.size
+      ? `install size ${formatBytesDelta(summary.size.bytes)}${
+          summary.size.platformSpecific > 0
+            ? ` (${plural(summary.size.platformSpecific, "platform-specific package")} not counted)`
+            : ""
+        }`
+      : "",
     `${summary.entriesBefore} → ${summary.entriesAfter} installed packages`,
   ].filter(Boolean);
 
@@ -135,8 +141,12 @@ function text(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/[\\`*_[\]~|]/g, "\\$&")
-    .replace(/@(?=[\w-])/g, "@&#8203;")
-    .replace(/#(?=\d)/g, "#&#8203;");
+    // `#` before `@`: the entity the `@` rule inserts contains `#8`, which the
+    // `#` rule would otherwise split into visible garbage. A mention only
+    // starts where a word does, so `checkout@v4`, `pkg@1.0.0` and an email
+    // address are left as they are.
+    .replace(/#(?=\d)/g, "#&#8203;")
+    .replace(/(?<![\w`])@(?=[\w-])/g, "@&#8203;");
 }
 
 /**

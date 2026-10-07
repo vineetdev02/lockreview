@@ -62,6 +62,12 @@ export interface SizeDelta {
   /** How many of the packages involved had a known unpacked size. */
   known: number;
   total: number;
+  /**
+   * Packages published for some platforms only, left out of all three numbers
+   * above: a lockfile lists every platform's binary and an install fetches
+   * one, so counting them made adding esbuild read as +224 MB.
+   */
+  platformSpecific: number;
 }
 
 export interface DiffSummary {
@@ -241,7 +247,9 @@ function collectAddedPackageSignals(
         scripts.length > 0
           ? `new dependency runs install scripts: ${scripts.join(", ")}`
           : "new dependency runs an install script",
-      detail: "Code from this package executes on every `npm install`, including in CI.",
+      // No backticks: details are escaped as somebody else's text in the
+      // comment, so markup in our own wording would print as characters.
+      detail: "Code from this package executes on every npm install, including in CI.",
     });
   }
 
@@ -475,8 +483,18 @@ function computeSizeDelta(diff: LockfileDiff, enrichment: Enrichment): SizeDelta
   let bytes = 0;
   let known = 0;
   let total = 0;
+  let platformSpecific = 0;
+
+  const platformOnly = (change: PackageChange): boolean => {
+    const only =
+      infoFor(enrichment, change)?.platformSpecific === true ||
+      previousInfoFor(enrichment, change)?.platformSpecific === true;
+    if (only) platformSpecific += 1;
+    return only;
+  };
 
   for (const change of diff.added) {
+    if (platformOnly(change)) continue;
     total += 1;
     const size = infoFor(enrichment, change)?.unpackedSize;
     if (size === undefined) continue;
@@ -485,6 +503,7 @@ function computeSizeDelta(diff: LockfileDiff, enrichment: Enrichment): SizeDelta
   }
 
   for (const change of diff.removed) {
+    if (platformOnly(change)) continue;
     total += 1;
     const size = previousInfoFor(enrichment, change)?.unpackedSize;
     if (size === undefined) continue;
@@ -493,6 +512,7 @@ function computeSizeDelta(diff: LockfileDiff, enrichment: Enrichment): SizeDelta
   }
 
   for (const change of diff.changed) {
+    if (platformOnly(change)) continue;
     total += 1;
     const after = infoFor(enrichment, change)?.unpackedSize;
     const before = previousInfoFor(enrichment, change)?.unpackedSize;
@@ -502,7 +522,7 @@ function computeSizeDelta(diff: LockfileDiff, enrichment: Enrichment): SizeDelta
   }
 
   if (total === 0 || known / total < MIN_SIZE_COVERAGE) return undefined;
-  return { bytes, known, total };
+  return { bytes, known, total, platformSpecific };
 }
 
 function entryAt(packages: LockPackage[], version?: string): LockPackage | undefined {

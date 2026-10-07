@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildNotes } from "../src/commands/diff.js";
 import { diffLockfiles } from "../src/diff.js";
 import { fetchVulnerabilities } from "../src/enrich/osv.js";
+import { fetchVersionInfo } from "../src/enrich/registry.js";
 import { lockfileOf } from "./fixtures.js";
 
 afterEach(() => {
@@ -84,5 +85,31 @@ describe("notes about what was not checked", () => {
 
   it("keeps the old note when nothing came back at all", () => {
     expect(buildNotes(diff, enrichment(0, []), false, outcome)[0]).toMatch(/only lockfile-level checks ran/);
+  });
+});
+
+describe("registry manifests", () => {
+  it("marks a package published for some platforms only", async () => {
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url.includes("linux-x64")) return Response.json({ os: ["linux"], cpu: ["x64"], dist: { unpackedSize: 9 } });
+      if (url.includes("musl")) return Response.json({ libc: ["musl"], dist: { unpackedSize: 9 } });
+      if (url.includes("everywhere")) return Response.json({ os: [], dist: { unpackedSize: 9 } });
+      return Response.json({ dist: { unpackedSize: 9 } });
+    });
+
+    const infos = await fetchVersionInfo(
+      [
+        { name: "@esbuild/linux-x64", version: "0.21.5" },
+        { name: "@rollup/rollup-linux-x64-musl", version: "4.0.0" },
+        { name: "everywhere", version: "1.0.0" },
+        { name: "esbuild", version: "0.21.5" },
+      ],
+      { ...http, registry: "https://registry.npmjs.org" },
+    );
+
+    expect(infos.get("@esbuild/linux-x64@0.21.5")?.platformSpecific).toBe(true);
+    expect(infos.get("@rollup/rollup-linux-x64-musl@4.0.0")?.platformSpecific).toBe(true);
+    expect(infos.get("everywhere@1.0.0")?.platformSpecific).toBe(false);
+    expect(infos.get("esbuild@0.21.5")?.platformSpecific).toBe(false);
   });
 });

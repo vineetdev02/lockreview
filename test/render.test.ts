@@ -113,6 +113,24 @@ describe("terminal report", () => {
   });
 });
 
+describe("install size", () => {
+  const report = (platformSpecific: number): Report => {
+    const base = reportOf(["a@1.0.0"], ["a@2.0.0"]);
+    return { ...base, summary: { ...base.summary, size: { bytes: 11_000_000, known: 1, total: 1, platformSpecific } } };
+  };
+
+  it("says how many platform-specific packages the total leaves out", () => {
+    expect(renderTerminal(report(23), { all: false })).toContain("23 platform-specific packages not counted");
+    expect(renderMarkdown(report(23), { all: false })).toContain("23 platform-specific packages not counted");
+    expect(JSON.parse(renderJson(report(23))).summary.installSizeDelta.platformSpecific).toBe(23);
+  });
+
+  it("says nothing about it when there were none", () => {
+    expect(renderTerminal(report(0), { all: false })).not.toContain("platform-specific");
+    expect(renderMarkdown(report(0), { all: false })).not.toContain("platform-specific");
+  });
+});
+
 describe("markdown report", () => {
   const output = renderMarkdown(reportOf(["a@1.0.0", "gone@1.0.0"], ["a@2.0.0", "new@1.0.0"]), {
     all: false,

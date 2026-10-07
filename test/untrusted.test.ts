@@ -100,10 +100,23 @@ describe("markdown output", () => {
     expect(output).not.toMatch(/(^|[^\w])@babel\b/);
     expect(output).not.toMatch(/(^|[^\w])@octocat\b/);
     expect(output).toContain("babel/core");
+    // Exactly one zero-width space after each sigil, and nothing else: the
+    // entity it is written as must not itself be taken apart.
+    expect(output).toContain("@&#8203;babel/core");
+    expect(output).toContain("@&#8203;octocat");
+    expect(output).not.toContain("&#&#8203;");
+  });
+
+  it("leaves an @ alone where no mention can start", () => {
+    const output = render("use pkg@2.0.0 or mail help@example.com");
+    expect(output).toContain("pkg@2.0.0");
+    expect(output).toContain("help@example.com");
   });
 
   it("does not link to an issue in the repository it is posted in", () => {
-    expect(render("see #123")).not.toMatch(/(^|[^\w&])#123/);
+    const output = render("see #123");
+    expect(output).not.toMatch(/(^|[^\w&])#123/);
+    expect(output).toContain("#&#8203;123");
   });
 
   it("does not let an entity spell out what was escaped", () => {

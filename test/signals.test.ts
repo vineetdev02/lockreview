@@ -467,7 +467,7 @@ describe("summary", () => {
       }),
     );
 
-    expect(summary.size).toEqual({ bytes: 1000, known: 2, total: 3 });
+    expect(summary.size).toEqual({ bytes: 1000, known: 2, total: 3, platformSpecific: 0 });
   });
 
   it("adds up sizes across both directions when they are all known", () => {
@@ -479,7 +479,53 @@ describe("summary", () => {
       }),
     );
 
-    expect(summary.size).toEqual({ bytes: -2000, known: 2, total: 2 });
+    expect(summary.size).toEqual({ bytes: -2000, known: 2, total: 2, platformSpecific: 0 });
+  });
+
+  /*
+   * esbuild, swc, rollup and Next.js publish one binary package per platform,
+   * and a lockfile lists every one of them while an install fetches one. Adding
+   * esbuild read as +224 MB — about twenty times what an install grows by.
+   */
+  it("leaves platform-specific packages out of the install size, and counts them", () => {
+    const after = lockfileOf(["esbuild@0.21.5", "@esbuild/linux-x64@0.21.5", "@esbuild/darwin-arm64@0.21.5"]);
+    const summary = summarize(
+      diffLockfiles(lockfileOf([]), after),
+      enrichmentOf({
+        "esbuild@0.21.5": { unpackedSize: 130_000 },
+        "@esbuild/linux-x64@0.21.5": { unpackedSize: 9_700_000, platformSpecific: true },
+        "@esbuild/darwin-arm64@0.21.5": { unpackedSize: 9_300_000, platformSpecific: true },
+      }),
+    );
+
+    expect(summary.size).toEqual({ bytes: 130_000, known: 1, total: 1, platformSpecific: 2 });
+  });
+
+  it("does the same for a platform package that was upgraded or removed", () => {
+    const summary = summarize(
+      diffLockfiles(
+        lockfileOf(["@swc/core-linux-x64-gnu@1.7.0", "fsevents@2.3.2", "a@1.0.0"]),
+        lockfileOf(["@swc/core-linux-x64-gnu@1.7.1", "a@2.0.0"]),
+      ),
+      enrichmentOf({
+        "@swc/core-linux-x64-gnu@1.7.0": { unpackedSize: 40_000_000, platformSpecific: true },
+        "@swc/core-linux-x64-gnu@1.7.1": { unpackedSize: 41_000_000, platformSpecific: true },
+        "fsevents@2.3.2": { unpackedSize: 170_000, platformSpecific: true },
+        "a@1.0.0": { unpackedSize: 1000 },
+        "a@2.0.0": { unpackedSize: 1500 },
+      }),
+    );
+
+    expect(summary.size).toEqual({ bytes: 500, known: 1, total: 1, platformSpecific: 2 });
+  });
+
+  it("still withholds a total when only platform-specific packages moved", () => {
+    const summary = summarize(
+      diffLockfiles(lockfileOf([]), lockfileOf(["@esbuild/linux-x64@0.21.5"])),
+      enrichmentOf({ "@esbuild/linux-x64@0.21.5": { unpackedSize: 9_700_000, platformSpecific: true } }),
+    );
+
+    expect(summary.size).toBeUndefined();
   });
 
   it("ranks the worst level present", () => {

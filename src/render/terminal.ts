@@ -99,6 +99,10 @@ function summaryBlock(report: Report): string[] {
         summary.size.known < summary.size.total
           ? c.dim(` (${summary.size.known}/${summary.size.total} known)`)
           : ""
+      }${
+        summary.size.platformSpecific > 0
+          ? c.dim(` · ${plural(summary.size.platformSpecific, "platform-specific package")} not counted`)
+          : ""
       }`
     : "";
 

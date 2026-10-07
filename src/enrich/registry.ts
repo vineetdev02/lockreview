@@ -18,6 +18,12 @@ export interface VersionInfo {
   automated?: boolean;
   /** Lifecycle scripts that run on install, if any. */
   installScripts?: string[];
+  /**
+   * Published for some platforms only — `os`, `cpu` or `libc` in the manifest.
+   * A lockfile lists every such variant of a package like esbuild, and an
+   * install fetches one of them.
+   */
+  platformSpecific?: boolean;
 }
 
 export interface VersionSpec {
@@ -34,6 +40,9 @@ interface RegistryManifest {
   maintainers?: Array<{ name?: string } | string>;
   _npmUser?: { name?: string; trustedPublisher?: { id?: string } };
   scripts?: Record<string, string>;
+  os?: unknown;
+  cpu?: unknown;
+  libc?: unknown;
 }
 
 export function specKey(spec: VersionSpec): string {
@@ -87,7 +96,14 @@ function toVersionInfo(spec: VersionSpec, manifest: RegistryManifest): VersionIn
     publisher: manifest._npmUser?.name,
     automated: manifest._npmUser?.trustedPublisher !== undefined,
     installScripts: installScripts.length > 0 ? [...installScripts] : undefined,
+    platformSpecific: restricted(manifest.os) || restricted(manifest.cpu) || restricted(manifest.libc),
   };
+}
+
+/** `os: ["linux"]` restricts; a missing or empty list does not. */
+function restricted(field: unknown): boolean {
+  if (typeof field === "string") return field.trim().length > 0;
+  return Array.isArray(field) && field.length > 0;
 }
 
 function normalizeLicense(license: RegistryManifest["license"]): string | undefined {

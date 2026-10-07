@@ -34,7 +34,12 @@ export function renderJson(report: Report): string {
       installedBefore: summary.entriesBefore,
       installedAfter: summary.entriesAfter,
       installSizeDelta: summary.size
-        ? { bytes: summary.size.bytes, known: summary.size.known, total: summary.size.total }
+        ? {
+            bytes: summary.size.bytes,
+            known: summary.size.known,
+            total: summary.size.total,
+            platformSpecific: summary.size.platformSpecific,
+          }
         : null,
     },
     signals: summary.signals.map((signal) => ({
